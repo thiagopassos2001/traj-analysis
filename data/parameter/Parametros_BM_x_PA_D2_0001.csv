@@ -1,0 +1,2 @@
+mpp,video_width,video_heigth,motobox_start_section,motobox_end_section,width_virtual_lane,virtual_lane_lim,green_open_time,image_reference
+0.025510204081632654,1920,1080,1455,1605,1,"[[[0, 365], [1920, 365]], [[0, 508], [1920, 508]], [[0, 638], [1920, 638]], [[0, 756], [1920, 756]], [[0, 890], [1920, 890]]]","[35, 195, 355, 495]",9 (BM_x_PA_D2_0002)
