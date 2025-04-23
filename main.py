@@ -153,6 +153,7 @@ def RunHd4Analysis(file_path):
     return result
 
 if __name__=="__main__":
+    os.chdir(r"C:\Users\User\Desktop\Repositórios Locais\Data\traj-analysis")
     root_path = r"C:\Users\User\Desktop\traj-analysis"
     output_folder = "data/hd4"
     run = Main()
