@@ -864,7 +864,7 @@ class  YoloMicroscopicDataProcessing:
         # Lista de filas
         df_queue = pd.DataFrame()
 
-        while len(df_analysed)>0:
+        while not df_analysed.empty:
             # Dados do primeiro veículo
             id_vehicle = df_analysed.iloc[0][self.id_column]
             vehicle = df_analysed[df_analysed[self.id_column]==id_vehicle]
@@ -896,7 +896,7 @@ class  YoloMicroscopicDataProcessing:
                 frame=frame,
                 ignore_vehicle_types_list=ignore_vehicle_types_list_distance)
 
-            while len(behind_vehicle)>0:
+            while not behind_vehicle.empty:
                 # São considerados em fila, se os veículos não estiverem muito distantes entre si
                 if behind_vehicle.iloc[0]['distance_between_vehicles']<=distance_between_vehicles_lim:
                     # Dados dos veiculos atrás
@@ -920,6 +920,7 @@ class  YoloMicroscopicDataProcessing:
                         id_vehicle=id_vehicle,
                         frame=frame,
                         ignore_vehicle_types_list=ignore_vehicle_types_list_distance)
+                    behind_vehicle = behind_vehicle[behind_vehicle[self.id_column]!=id_vehicle]
                 else:
                     break
 
@@ -1025,7 +1026,7 @@ class  YoloMicroscopicDataProcessing:
         id_vehicle:int,
         frame:int,
         side_offset_vehicle:float=None,
-        max_longitudinal_distance_overlap:float=0.20,
+        max_longitudinal_distance_overlap:float=0.30,
         ignore_vehicle_types_list:list=[],
         project_verification:bool=False
         ):
@@ -1073,7 +1074,7 @@ class  YoloMicroscopicDataProcessing:
         id_vehicle:int,
         frame:int,
         side_offset_vehicle:float=None,
-        max_longitudinal_distance_overlap=0.20,
+        max_longitudinal_distance_overlap=0.30,
         ignore_vehicle_types_list:list=[]):
 
         # Quadro de análise no instante de referencia
@@ -1103,7 +1104,7 @@ class  YoloMicroscopicDataProcessing:
         id_vehicle:int,
         frame:int,
         side_offset_vehicle:float=None,
-        max_longitudinal_distance_overlap:float=0.20,
+        max_longitudinal_distance_overlap:float=0.30,
         ignore_vehicle_types_list:list=[],
         project_verification:bool=False,
         report_null_value:bool=False):
@@ -1134,7 +1135,7 @@ class  YoloMicroscopicDataProcessing:
         id_vehicle:int,
         frame:int,
         side_offset_vehicle:float=None,
-        max_longitudinal_distance_overlap:float=0.20,
+        max_longitudinal_distance_overlap:float=0.30,
         ignore_vehicle_types_list:list=[]):
 
         behind_vehicle_group = self.VehicleBehind(
@@ -2074,9 +2075,10 @@ class  YoloMicroscopicDataProcessing:
     def Hd1Analysis(
             self,
             instant,
-            side_offset_vehicle=0.3,
+            side_offset_vehicle=0.15,
             dist_between_motorcycle_ahead:float=1,      # dbma
             dist_between_motorcycle_behind:float=2.5,   # dbmb
+            max_long_dist_overlap=0.3,
             frame_convert_mode="fps",
             fps=None,
             ):
@@ -2101,13 +2103,13 @@ class  YoloMicroscopicDataProcessing:
             frame = self.df[self.df[self.instant_column]==instant][self.frame_column].values[0]
         if frame_convert_mode=="fps":
             frame = int(instant*fps)
-
         
         # Ids dos veículos nesse frame de cada fila
-        df_analysis[self.traffic_lane_column] = self.traffic_lane_polygon["id"].values
+        df_analysis[self.traffic_lane_column] = self.traffic_lane_polygon["id"].values.astype(int)
+        
         df_analysis["id1"] = df_analysis[self.traffic_lane_column].apply(lambda x:self.FirstVehicleQueue(frame,x))
         # Remove faixas que não contiverem veículos, para evitar erros futuros
-        df_analysis = df_analysis.dropna(subset="id1")
+        df_analysis = df_analysis.dropna(subset="id1")        
 
         # Se não houver veículos computáveis, retorna None
         if df_analysis.empty:
@@ -2121,10 +2123,13 @@ class  YoloMicroscopicDataProcessing:
         # Veículo pesado ou não
         df_analysis["Qvp1j"] = df_analysis[self.vehicle_type_column].isin(self.vehicle_category_list['heavy']).astype(int)
 
+        # Coluna para armasenar as motos armazenadas por ciclo
+        df_analysis["idMcj"] = [[-1]]*len(df_analysis)
+
         # Quantidade de veículos a frente por categorias
         # IDs
-        df_analysis["idQmfj"] = df_analysis["id1"].apply(lambda x:self.VehicleAhead(x,frame,side_offset_vehicle=side_offset_vehicle)["id"].tolist())
-        df_analysis["idQmfXYj"] = df_analysis["idQmfj"].apply(lambda x:[self.MotorcycleAheadFirstAnalysisDocAlessandro(i,frame) for i in x])
+        df_analysis["idQmfj"] = df_analysis["id1"].apply(lambda x:self.VehicleAhead(x,frame,side_offset_vehicle=side_offset_vehicle,max_longitudinal_distance_overlap=max_long_dist_overlap)["id"].tolist())
+        df_analysis["idQmfXYj"] = df_analysis.apply(lambda row:[self.MotorcycleAheadFirstAnalysisDocAlessandro(i,frame,row[self.traffic_lane_column],max_long_dist_overlap=max_long_dist_overlap) for i in row["idQmfj"]],axis=1)
         # Contagens
         # Total
         df_analysis["Qmfj"] = df_analysis["idQmfXYj"].str.len()
@@ -2146,6 +2151,9 @@ class  YoloMicroscopicDataProcessing:
         df_analysis["idQmfj"] = df_analysis.apply(lambda row:dict(zip(row["idQmfj"],row["idQmfXYj"])),axis=1)
         df_analysis = df_analysis.drop(columns=["idQmfXYj"])
 
+        # Atualiza as motos já contabilizadas por ciclo
+        df_analysis["idMcj"] = df_analysis.apply(lambda row:row["idMcj"]+list(row["idQmfj"].keys()),axis=1)
+
         # Cálculo do headway (temporal e espacial)
         df_analysis[["hd1_time","hd1_space"]] = df_analysis.apply(lambda row:self.Hd1FromEndMWA(frame,row["traffic_lane"]),axis=1,result_type="expand")
         df_analysis["hd1_time"] = df_analysis["hd1_time"].round(2)
@@ -2156,9 +2164,14 @@ class  YoloMicroscopicDataProcessing:
             row["id1"],
             frame,
             max_lat_dist=1,
+            overlap_lon=-dbma,
             ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"]).query(
                 f"{self.x_tail_column} <= {row[self.x_head_column]}+{dbma} & {self.x_head_column} >= {row[self.x_head_column]}-{dbmb}"
             )[self.id_column].tolist(),axis=1)
+        
+        # Remover ids já contabilizados em outras classes
+        df_analysis[f"idQmcpj"] = df_analysis.apply(lambda row:[i for i in row[f"idQmcpj"] if i not in row["idMcj"]],axis=1)
+        # Contabiliza
         df_analysis["Qmcpj"] = df_analysis["idQmcpj"].str.len()
         
         # Insere a informação de frame e instante de tempo
@@ -2177,7 +2190,7 @@ class  YoloMicroscopicDataProcessing:
             id_vehicle_follower,
             frame,
             max_long_dist_overlap=0.3,
-            side_offset_vehicle=0.3):
+            side_offset_vehicle=0.15):
         """
         Retorna os ids das motocicletas entre os veículos líder e seguidor no frame indicado
         Ignora outros veículos não moto entre os veículos líder e seguidor
@@ -2227,7 +2240,7 @@ class  YoloMicroscopicDataProcessing:
             self,
             instant,
             max_long_dist_overlap=0.3,
-            side_offset_vehicle=0.3,
+            side_offset_vehicle=0.15,
             dist_between_motorcycle_ahead:float=1,      # dbma
             dist_between_motorcycle_behind:float=2.5,   # dbmb
             lat_virtual_lane_overlap:float=0.4,
@@ -2248,6 +2261,7 @@ class  YoloMicroscopicDataProcessing:
         # Veiculos por fila
         # Mantém só first_group e agrupa por faixa
         df_analysis = self.QueueDetector(frame,distance_between_vehicles_lim=1e10).sort_values(by=[self.traffic_lane_column,"queue_position"])
+        df_analysis[self.traffic_lane_column] = df_analysis[self.traffic_lane_column].astype(int)
         # Reduz a amostra para até 4 veículos
         df_analysis = df_analysis[df_analysis["queue_position"]<=4]
         # Indica se cada veículo é "pesado" ou não
@@ -2358,12 +2372,12 @@ class  YoloMicroscopicDataProcessing:
         # Quantidade de veículos a frente por categorias
         # -----------------------------------------------------------------------------------------------------
         # IDs
-        df_analysis["idQmfj"] = df_analysis["id1"].apply(lambda row:self.VehicleAhead(row,frame,side_offset_vehicle=side_offset_vehicle)[self.id_column].tolist())
+        df_analysis["idQmfj"] = df_analysis["id1"].apply(lambda row:self.VehicleAhead(row,frame,side_offset_vehicle=side_offset_vehicle,max_longitudinal_distance_overlap=max_long_dist_overlap)[self.id_column].tolist())
         # Remover ids já contabilizados em outras classes
         df_analysis["idQmfj"] = df_analysis.apply(lambda row:[i for i in row["idQmfj"] if i not in row["idMcj"]],axis=1)
 
         # Classes
-        df_analysis["idQmfXYj"] = df_analysis["idQmfj"].apply(lambda row:[self.MotorcycleAheadFirstAnalysisDocAlessandro(i,frame) for i in row])
+        df_analysis["idQmfXYj"] = df_analysis.apply(lambda row:[self.MotorcycleAheadFirstAnalysisDocAlessandro(i,frame,row[self.traffic_lane_column],max_long_dist_overlap=max_long_dist_overlap) for i in row["idQmfj"]],axis=1)
         # Contagens
         # Total
         df_analysis["Qmfj"] = df_analysis["idQmfXYj"].str.len()
@@ -2441,6 +2455,7 @@ class  YoloMicroscopicDataProcessing:
             df_analysis[f"idQmcp{pos}j"] = df_analysis.apply(lambda row:self.SideVehicle(
                 row["idj"][pos-1],
                 frame,
+                overlap_lon=-dbma,
                 max_lat_dist=1,
                 ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"]).query(
                     f"{self.x_tail_column} <= {row[self.x_head_column][pos-1]}+{dbma} & {self.x_head_column} >= {row[self.x_head_column][pos-1]}-{dbmb}"
@@ -2494,6 +2509,7 @@ class  YoloMicroscopicDataProcessing:
             self,
             id,
             frame,
+            traffic_lane,
             dist_between_motorcycle_vehicle_1:float=3.0,    # dbmv1
             dist_between_motorcycle_vehicle_2:float=4.5,    # dbmv2
             dist_between_motorcycle_motorcycle:float=1.5,   # dbmm
@@ -2520,6 +2536,7 @@ class  YoloMicroscopicDataProcessing:
         crit1 = self.MotorcycleAnalysisDocAlessandroPt1(
             id,
             frame,
+            traffic_lane,
             dist_between_motorcycle_vehicle_1=dbmv1,
             dist_between_motorcycle_vehicle_2=dbmv2,
             max_long_dist_overlap=mldo,
@@ -2539,6 +2556,7 @@ class  YoloMicroscopicDataProcessing:
             self,
             id,
             frame,
+            traffic_lane,
             dist_between_motorcycle_vehicle_1:float=3.0,    # dbmv1
             dist_between_motorcycle_vehicle_2:float=4.5,    # dbmv2
             max_long_dist_overlap:float=0.30,               # mldo
@@ -2550,17 +2568,23 @@ class  YoloMicroscopicDataProcessing:
         mldo = max_long_dist_overlap
 
         # Distância do veículo de trás
-        vehicle1 = self.FirstVehicleBehind(
+        vehicle1 = self.VehicleBehind(
             id_vehicle=id,
             frame=frame,
             max_longitudinal_distance_overlap=mldo,
             side_offset_vehicle=side_offset_vehicle,
             ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"])
         
+        # Filtra a faixa
+        vehicle1 = vehicle1[vehicle1[self.traffic_lane_column]==traffic_lane].sort_values("distance_between_vehicles")
+        
+        
         # Se não retornar veículos, retorna "0"
-        if len(vehicle1)<1:
+        if vehicle1.empty:
            return "0"
         
+        # Ajusta para 1 veículo
+        vehicle1 = vehicle1.iloc[:1]
         # Se até "dbmv1", retorna "1"
         if vehicle1["distance_between_vehicles"].values[0]<=dbmv1:
             return "1" 

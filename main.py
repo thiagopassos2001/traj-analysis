@@ -153,8 +153,7 @@ def RunHd4Analysis(file_path):
     return result
 
 if __name__=="__main__":
-    os.chdir(r"C:\Users\User\Desktop\Repositórios Locais\Data\traj-analysis")
-    root_path = r"C:\Users\User\Desktop\traj-analysis"
+    root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     output_folder = "data/hd4"
     run = Main()
     run.WorkflowPattern(
@@ -170,12 +169,35 @@ if __name__=="__main__":
         df_ = pd.read_csv(os.path.join(output_folder,f))
         df.append(df_)
     df = pd.concat(df,ignore_index=True)
-    df.to_excel("data/summary/hd4_20_04_25.xlsx",index=False)
+    df.to_excel("data/summary/hd4_23_04_25.xlsx",index=False)
 
-    # result = RunHd4Analysis("data/json/BM_x_PA_D2_0009.json")
-    # print(result[result.columns[2:14]]) # [result.columns[:8]]
+    output_folder = "data/hd1"
+    run = Main()
+    run.WorkflowPattern(
+        root_path=root_path,
+        output_folder=output_folder,
+        prefix="Hd1_",
+        func=RunHd1Analysis)
+    
+    # Concatenar resumo
+    df = []
+    all_files = os.listdir(output_folder)
+    for f in all_files:
+        df_ = pd.read_csv(os.path.join(output_folder,f))
+        df.append(df_)
+    df = pd.concat(df,ignore_index=True)
+    df.to_excel("data/summary/hd1_23_04_25.xlsx",index=False)
 
+    # result = RunHd1Analysis("data/json/BM_x_PA_D7_0007.json")
+    # print(result) # [result.columns[:8]]
+    
 
+    # model = YoloMicroscopicDataProcessing()
+    # model.ImportFromJSON("data/json/BM_x_PA_D7_0007.json")
+    # # print(model.df[model.df["id"]==799])
+
+    # # print(model.MotorcycleAheadFirstAnalysisDocAlessandro(230,4855,1))
+    # print(model.RunHd1Analysis())
     
 
     
