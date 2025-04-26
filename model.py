@@ -3153,6 +3153,42 @@ class  YoloMicroscopicDataProcessing:
             vehicle = vehicle[1:]
 
         return df_CC0
+    
+    def CheckVehicleOverlay(self,id_list,frame,max_centroid_overlap_dist=0.25):
+        """
+        Analisa os veículos no frame indicado e verifica quais veiculos tem o
+        centroide muito próximo ao de outros veículo
+        Retorna o mesmo conjunto de id_list
+        """
+        # Filtra os ids e frame
+        df_analysis = self.df[(self.df[self.frame_column]==frame) & (self.df[self.id_column].isin(id_list))]
+        
+        # Cria o geodataframe com os dados
+        df_analysis = gpd.GeoDataFrame(
+            df_analysis,
+            geometry=gpd.points_from_xy(
+                df_analysis[self.x_centroid_column],
+                df_analysis[self.y_centroid_column]),
+            crs="EPSG:31984")
+        
+        # Compara com o própróprio dataframe, buscando o veículo mais próximo
+        # Até a distância "max_centroid_overlap_dist", ignorando pontos sobrepostos
+        df_analysis = df_analysis.sjoin_nearest(
+            df_analysis[[self.id_column,"geometry"]],
+            how="left",
+            max_distance=max_centroid_overlap_dist,
+            distance_col="distance_from_centroid",
+            lsuffix="origin",
+            rsuffix="overlap",
+            exclusive=True)
+        
+        # Verifica se o "id_overlap" foi np.nan (são tem sobreposição)
+        # Ou tem um valor, mantendo o menor id
+        df_analysis = df_analysis[["id_origin","id_overlap","distance_from_centroid"]]
+        df_analysis[self.id_column] = df_analysis.apply(lambda row:row["id_origin"] if row["id_overlap"]==np.nan else int(min(row["id_origin"],row["id_overlap"])),axis=1)
+
+        # Retorna a lista final
+        return sorted(df_analysis[self.id_column].unique().tolist())
 
 
 def InsideCircle(x_center,y_center,x_object,y_object,radius):
