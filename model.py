@@ -78,6 +78,9 @@ class  YoloMicroscopicDataProcessing:
         self.global_stopped_speed_threshold = 1
         # FPS
         self.fps = 30
+        # Flip
+        self.flip_h = False
+        self.flip_v = False
 
         #-----------------------------------------------------------------------
 
@@ -315,7 +318,9 @@ class  YoloMicroscopicDataProcessing:
             "virtual_lane_lim":[[[int(i[0]/self.mpp),int(i[-1]/self.mpp)] for i in j] for j in self.virtual_lane_lim],
             "traffic_lane_polygon":self.traffic_lane_polygon[["id","coords"]].to_dict(),
             "green_open_time":self.green_open_time,
-            "image_reference": f"data/image/{os.path.basename(str(self.image_reference))}"  # Alguns dados foram colocados como só o número do frame
+            "image_reference": f"data/image/{os.path.basename(str(self.image_reference))}",  # Alguns dados foram colocados como só o número do frame
+            "flip_h":self.flip_h,
+            "flip_v":self.flip_v,
         }
 
         # Salvar arquivo        
@@ -411,21 +416,31 @@ class  YoloMicroscopicDataProcessing:
         # Instantes em que o verde abre
         self.green_open_time = cfg['green_open_time']
 
-        # Atribui as coordenadas 
-        self.df = pd.read_csv(cfg["processed_file"])
-
         # Nomes dos arquivos
         self.raw_file = cfg["raw_file"]
         self.processed_file = cfg["processed_file"]
         self.parameter_file = cfg["parameter_file"]
         self.image_reference = cfg["image_reference"]
-        
 
-        # Atualiza o json
-        with open(file_path,'w',encoding="utf-8",errors="ignore") as f:  
-            json.dump(cfg,f,indent=4)
+        try:
+            self.flip_h = cfg["flip_h"]
+            self.flip_v = cfg["flip_v"]
+        except:
+            print("Sem indicação de rotação horizontal")
+            self.flip_h = False
+            self.flip_v = False
 
-        return True
+        # Tenta atribuir o arquivo
+        try:
+            self.df = pd.read_csv(self.processed_file)
+            print("Trajetórias importadas com sucesso!")
+        except:
+            self.df = pd.DataFrame()
+            print("Trajetórias ainda não processadas!")
+        finally:
+            # Atualiza o json
+            with open(file_path,'w',encoding="utf-8",errors="ignore") as f:  
+                json.dump(cfg,f,indent=4)
 
     def RemoveLowIncidence(self,threshold:int=20,logs=True):
         '''

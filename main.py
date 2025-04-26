@@ -1,5 +1,6 @@
  # Libs principais
 from model import YoloMicroscopicDataProcessing
+import geopandas as gpd
 import pandas as pd
 import shapely 
 
@@ -152,9 +153,109 @@ def RunHd4Analysis(file_path):
 
     return result
 
-if __name__=="__main__":
+def RunDataProcessingFromParameterType1(file_path):
     model = YoloMicroscopicDataProcessing()
-    model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D3_0001.json")
+    model.ImportFromJSON(file_path)
+
+    # Importa do arquivo bruto
+    model.df = pd.read_csv(model.raw_file)
+
+    # Renomear colunas
+    old_pattern = True if 'x_esquerda' in model.df.columns.tolist() else False
+    # Ajusta os nomes das colunas para o padrão
+    model.df = model.df.rename(columns={
+        'id':model.id_column,
+        'tipo':model.vehicle_type_column,
+        'conf':model.conf_YOLO_column,
+        'faixa':model.traffic_lane_column,
+        'instante':model.instant_column,
+    })
+
+    if not old_pattern:
+        model.df = model.df.rename(columns={
+            'x1':model.p1_x_bb_column,
+            'y1':model.p1_y_bb_column,
+            'x2':model.p2_x_bb_column,
+            'y2':model.p2_y_bb_column,
+        })
+    else:
+        model.df = model.df.rename(columns={
+            'x_esquerda':model.p1_x_bb_column, # Comentar depois
+            'y_superior':model.p1_y_bb_column, # Comentar depois
+            'x_largura':model.vehicle_length_column, # Comentar depois
+            'y_altura':model.vehicle_width_column, # Comentar depois
+        })
+
+        model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
+        model.df[model.p2_y_bb_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]
+    
+    # Ajuste do tipo de veículo
+    for id in model.df[model.id_column].unique():
+        model.df.loc[model.df[model.id_column]==id,model.vehicle_type_column] = model.FindVehicleType(id)
+
+    # Converter variáveis de posição e distancia de pixels para metro
+    model.df[model.p1_x_bb_column] = model.mpp*model.df[model.p1_x_bb_column]
+    model.df[model.p1_y_bb_column] = model.mpp*model.df[model.p1_y_bb_column]
+    model.df[model.p2_x_bb_column] = model.mpp*model.df[model.p2_x_bb_column]
+    model.df[model.p2_y_bb_column] = model.mpp*model.df[model.p2_y_bb_column]
+    
+    # Cálculo das dimensões do veículo
+    model.df[model.vehicle_length_column] = model.df[model.p2_x_bb_column]-model.df[model.p1_x_bb_column]
+    model.df[model.vehicle_width_column] = model.df[model.p2_y_bb_column]-model.df[model.p1_y_bb_column]
+
+    # Rotação horizontal se necessário
+    if model.flip_h:
+        # Coordenada horizontal à esquerda
+        model.df[model.p1_x_bb_column] = model.video_width - model.df[model.p1_x_bb_column] - model.df[model.vehicle_length_column]
+        # Recalculo do ponto à direita
+        model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
+    
+    if model.flip_v:
+        # Coordenada horizontal à esquerda
+        model.df[model.p1_y_bb_column] = model.video_heigth - model.df[model.p1_y_bb_column] - model.df[model.vehicle_width_column]
+        # Recalculo do ponto à direita
+        model.df[model.p2_y_bb_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]
+    
+    # Cálculo do centroide x e y
+    model.df[model.y_centroid_column] = (model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]*0.5)
+    model.df[model.x_centroid_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]*0.5
+    
+    # Ajuste do número da faixa
+    model.df = gpd.GeoDataFrame(model.df,
+                                geometry=gpd.points_from_xy(model.df[model.x_centroid_column],model.df[model.y_centroid_column]),
+                                crs="EPSG:31984")
+
+    model.df = model.df.overlay(model.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union')
+    model.df[model.traffic_lane_column] = model.df["tl_polygon"]
+    model.df = pd.DataFrame(model.df.drop(columns=["tl_polygon","geometry"]))
+
+    # Cálculo de posições estrátégicas longitudinais o veículo
+    # Fundo do veículo
+    model.df[model.x_tail_column] = model.df[model.p1_x_bb_column]
+    # Frente do veículo
+    model.df[model.x_head_column] = model.df[model.p2_x_bb_column]
+
+    # Arredonda o tempo
+    model.df[model.instant_column] = model.df[model.instant_column].round(4)
+    # Id geral, combinando id e tempo
+    model.df[model.global_id_column] = model.df[model.id_column].astype(str) + '@' + model.df[model.frame_column].astype(str)
+
+    # Remove valores com baixa incidência
+    model.RemoveLowIncidence()
+    # Calcula da velocidade e aceleração
+    model.SpeedAndAccDetector()
+    # Criar frames interpolados
+    df_new = model.GhostFramesGenerator(model.df[model.id_column].unique(),step=1)
+    model.df = pd.concat([model.df,df_new],ignore_index=True)
+    model.df = model.df.sort_values(by=[model.frame_column,model.traffic_lane_column,model.x_centroid_column])
+
+    print("Fim da execussão")
+
+    return model
+
+if __name__=="__main__":
+    model = RunDataProcessingFromParameterType1("data/json/BM_x_PA_D5_0001.json")
+    print(model.df)
 
     # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     # output_folder = "data/hd4"
