@@ -2129,6 +2129,7 @@ class  YoloMicroscopicDataProcessing:
         # Quantidade de veículos a frente por categorias
         # IDs
         df_analysis["idQmfj"] = df_analysis["id1"].apply(lambda x:self.VehicleAhead(x,frame,side_offset_vehicle=side_offset_vehicle,max_longitudinal_distance_overlap=max_long_dist_overlap)["id"].tolist())
+        df_analysis["idQmfj"] = df_analysis.apply(lambda row:self.FilterVehicleOverlay(id_list=row["idQmfj"],frame=frame,max_centroid_overlap_dist=0.25),axis=1)
         df_analysis["idQmfXYj"] = df_analysis.apply(lambda row:[self.MotorcycleAheadFirstAnalysisDocAlessandro(i,frame,row[self.traffic_lane_column],max_long_dist_overlap=max_long_dist_overlap) for i in row["idQmfj"]],axis=1)
         # Contagens
         # Total
@@ -2142,6 +2143,13 @@ class  YoloMicroscopicDataProcessing:
         df_analysis["Qmf31j"] = [i.count('31') for i in df_analysis["idQmfXYj"]]
         # Restos
         df_analysis["Qmf00j"] = df_analysis["Qmfj"] - df_analysis[[
+            'Qmf10j','Qmf11j',
+            'Qmf20j','Qmf21j',
+            'Qmf30j','Qmf31j',
+            ]].sum(axis=1)
+        
+        # Redefine a quantidade agregada
+        df_analysis["Qmfj"] = df_analysis[[
             'Qmf10j','Qmf11j',
             'Qmf20j','Qmf21j',
             'Qmf30j','Qmf31j',
@@ -2178,6 +2186,9 @@ class  YoloMicroscopicDataProcessing:
         df_analysis.insert(0,self.instant_column,instant)
         df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
         df_analysis.insert(0,self.frame_column,frame)
+
+        # Motobox modo Gambiarra
+        df_analysis["MB"] = 0 if "SemMotobox" in self.processed_file else 1
 
         # Ajuste do tipo de variável
         df_analysis["id1"] = df_analysis["id1"].astype(int)
@@ -2244,7 +2255,7 @@ class  YoloMicroscopicDataProcessing:
             dist_between_motorcycle_ahead:float=1,      # dbma
             dist_between_motorcycle_behind:float=2.5,   # dbmb
             lat_virtual_lane_overlap:float=0.4,
-            max_section_overlap:float=1
+            max_distance_invading_section:float=1
             ):
         """
         Retorna um dataframe com variáveis necessárias para analisar
@@ -2345,14 +2356,14 @@ class  YoloMicroscopicDataProcessing:
             df_analysis.insert(0,self.frame_column,frame)
             return df_analysis
 
-        # Verifica se o primeiro veículo está a frente da faixa de retenção até "max_section_overlap"
+        # Verifica se o primeiro veículo está a frente da faixa de retenção até "max_distance_invading_section"
         # Report
-        df_analysis["report"] = df_analysis.apply(lambda row:f"@{row['id1']} avançou além de {max_section_overlap} m no motobox" if row[self.x_head_column][0]>self.motobox_start_section+max_section_overlap else np.nan,axis=1)
+        df_analysis["report"] = df_analysis.apply(lambda row:f"@{row['id1']} avançou além de {max_distance_invading_section} m no motobox" if row[self.x_head_column][0]>self.motobox_start_section+max_distance_invading_section else np.nan,axis=1)
         df_report = pd.concat([df_report,df_analysis[-df_analysis["report"].isna()]],ignore_index=True)
         # Aplica o filtro
-        df_analysis = df_analysis[df_analysis[self.x_head_column].apply(lambda row: row[0]<=self.motobox_start_section+max_section_overlap)]
+        df_analysis = df_analysis[df_analysis[self.x_head_column].apply(lambda row: row[0]<=self.motobox_start_section+max_distance_invading_section)]
 
-        # Se todos os veículos invadirem mais de "max_section_overlap"
+        # Se todos os veículos invadirem mais de "max_distance_invading_section"
         # Retorna a o dataframe vazio
         if df_analysis.empty:
             df_analysis = pd.concat([df_analysis,df_report],ignore_index=True)
@@ -2373,6 +2384,7 @@ class  YoloMicroscopicDataProcessing:
         # -----------------------------------------------------------------------------------------------------
         # IDs
         df_analysis["idQmfj"] = df_analysis["id1"].apply(lambda row:self.VehicleAhead(row,frame,side_offset_vehicle=side_offset_vehicle,max_longitudinal_distance_overlap=max_long_dist_overlap)[self.id_column].tolist())
+        df_analysis["idQmfj"] = df_analysis.apply(lambda row:self.FilterVehicleOverlay(id_list=row["idQmfj"],frame=frame,max_centroid_overlap_dist=0.25),axis=1)
         # Remover ids já contabilizados em outras classes
         df_analysis["idQmfj"] = df_analysis.apply(lambda row:[i for i in row["idQmfj"] if i not in row["idMcj"]],axis=1)
 
@@ -2390,6 +2402,13 @@ class  YoloMicroscopicDataProcessing:
         df_analysis["Qmf31j"] = [i.count('31') for i in df_analysis["idQmfXYj"]]
         # Restos
         df_analysis["Qmf00j"] = df_analysis["Qmfj"] - df_analysis[[
+            'Qmf10j','Qmf11j',
+            'Qmf20j','Qmf21j',
+            'Qmf30j','Qmf31j',
+            ]].sum(axis=1)
+        
+        # Redefine a quantidade agregada
+        df_analysis["Qmfj"] = df_analysis[[
             'Qmf10j','Qmf11j',
             'Qmf20j','Qmf21j',
             'Qmf30j','Qmf31j',
@@ -2533,7 +2552,7 @@ class  YoloMicroscopicDataProcessing:
         mldo = max_long_dist_overlap
 
         # Parte 1 das categorias
-        crit1 = self.MotorcycleAnalysisDocAlessandroPt1(
+        crit1 = self.MotorcycleClassificationPt1(
             id,
             frame,
             traffic_lane,
@@ -2543,7 +2562,7 @@ class  YoloMicroscopicDataProcessing:
             side_offset_vehicle=side_offset_vehicle)
         
         # Parte 2 das categorias
-        crit2 = self.MotorcycleAnalysisDocAlessandroPt2(
+        crit2 = self.MotorcycleClassificationPt2(
             id,
             frame,
             dist_between_motorcycle_motorcycle=dbmm,
@@ -2552,7 +2571,7 @@ class  YoloMicroscopicDataProcessing:
         
         return crit1+crit2
     
-    def MotorcycleAnalysisDocAlessandroPt1(
+    def MotorcycleClassificationPt1(
             self,
             id,
             frame,
@@ -2560,7 +2579,8 @@ class  YoloMicroscopicDataProcessing:
             dist_between_motorcycle_vehicle_1:float=3.0,    # dbmv1
             dist_between_motorcycle_vehicle_2:float=4.5,    # dbmv2
             max_long_dist_overlap:float=0.30,               # mldo
-            side_offset_vehicle=0.30):               
+            side_offset_vehicle=0.15,
+            max_dist_invading_section=1.5):               
         
         # Utilizando variáveis com nomes menores
         dbmv1 = dist_between_motorcycle_vehicle_1
@@ -2578,13 +2598,19 @@ class  YoloMicroscopicDataProcessing:
         # Filtra a faixa
         vehicle1 = vehicle1[vehicle1[self.traffic_lane_column]==traffic_lane].sort_values("distance_between_vehicles")
         
-        
         # Se não retornar veículos, retorna "0"
         if vehicle1.empty:
            return "0"
         
         # Ajusta para 1 veículo
         vehicle1 = vehicle1.iloc[:1]
+
+        # Verifica se a moto veículo está além da seção do motobox mais folga
+        # Posição da frente da moto no frame
+        motorcycle_x_head = self.df[(self.df[self.id_column]==id) & (self.df[self.frame_column]==frame)][self.x_head_column].values[0]
+        if motorcycle_x_head>self.motobox_end_section+max_dist_invading_section:
+            return "0"
+
         # Se até "dbmv1", retorna "1"
         if vehicle1["distance_between_vehicles"].values[0]<=dbmv1:
             return "1" 
@@ -2596,7 +2622,7 @@ class  YoloMicroscopicDataProcessing:
         # Se não for nenhum, retorna "3"
         return "3"
     
-    def MotorcycleAnalysisDocAlessandroPt2(
+    def MotorcycleClassificationPt2(
             self,
             id,
             frame,
@@ -3154,12 +3180,16 @@ class  YoloMicroscopicDataProcessing:
 
         return df_CC0
     
-    def CheckVehicleOverlay(self,id_list,frame,max_centroid_overlap_dist=0.25):
+    def FilterVehicleOverlay(self,id_list,frame,max_centroid_overlap_dist=0.25):
         """
         Analisa os veículos no frame indicado e verifica quais veiculos tem o
         centroide muito próximo ao de outros veículo
         Retorna o mesmo conjunto de id_list
         """
+        # Deve ter pelo menos 2 veículos
+        if len(id_list)<1:
+            return id_list
+
         # Filtra os ids e frame
         df_analysis = self.df[(self.df[self.frame_column]==frame) & (self.df[self.id_column].isin(id_list))]
         
@@ -3188,8 +3218,8 @@ class  YoloMicroscopicDataProcessing:
         df_analysis[self.id_column] = df_analysis.apply(lambda row:row["id_origin"] if row["id_overlap"]==np.nan else int(min(row["id_origin"],row["id_overlap"])),axis=1)
 
         # Retorna a lista final
-        return sorted(df_analysis[self.id_column].unique().tolist())
-
+        id_list = sorted(df_analysis[self.id_column].unique().tolist())
+        return id_list
 
 def InsideCircle(x_center,y_center,x_object,y_object,radius):
     '''

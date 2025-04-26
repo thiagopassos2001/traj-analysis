@@ -154,14 +154,7 @@ def RunHd4Analysis(file_path):
 
 if __name__=="__main__":
     model = YoloMicroscopicDataProcessing()
-    model.ImportFromJSON("data/json/BM_x_PA_D5_0001.json")
-
-    frame = 9720
-    id_list = model.df[model.df["frame"]==frame]["id"].tolist()
-    id_list = sorted(id_list)
-    print(id_list)
-    id_list = model.CheckVehicleOverlay(id_list,frame=frame)
-    print(id_list)
+    model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D3_0001.json")
 
     # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     # output_folder = "data/hd4"
