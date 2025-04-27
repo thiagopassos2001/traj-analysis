@@ -422,13 +422,9 @@ class  YoloMicroscopicDataProcessing:
         self.parameter_file = cfg["parameter_file"]
         self.image_reference = cfg["image_reference"]
 
-        try:
-            self.flip_h = cfg["flip_h"]
-            self.flip_v = cfg["flip_v"]
-        except:
-            print("Sem indicação de rotação horizontal")
-            self.flip_h = False
-            self.flip_v = False
+        # Inversões já aplicadas aos dados
+        self.flip_h = cfg["flip_h"]
+        self.flip_v = cfg["flip_v"]
 
         # Tenta atribuir o arquivo
         try:
