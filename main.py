@@ -170,6 +170,13 @@ def RunDataProcessingFromParameterType1(file_path):
         'faixa':model.traffic_lane_column,
         'instante':model.instant_column,
     })
+    
+    model.df[model.frame_column] = model.df[model.frame_column].astype(int)
+    model.df[model.id_column] = model.df[model.id_column].astype(int)
+    model.df[model.vehicle_type_column] = model.df[model.vehicle_type_column].astype("category")
+    model.df[model.conf_YOLO_column] = model.df[model.conf_YOLO_column].astype(float)
+    model.df[model.traffic_lane_column] = model.df[model.traffic_lane_column].astype(int)
+    model.df[model.instant_column] = model.df[model.instant_column].astype(float)
 
     if not old_pattern:
         model.df = model.df.rename(columns={
@@ -238,6 +245,7 @@ def RunDataProcessingFromParameterType1(file_path):
     # Arredonda o tempo
     model.df[model.instant_column] = model.df[model.instant_column].round(4)
     # Id geral, combinando id e tempo
+    model.df[model.frame_column] = model.df[model.frame_column].astype(int)
     model.df[model.global_id_column] = model.df[model.id_column].astype(str) + '@' + model.df[model.frame_column].astype(str)
 
     # Remove valores com baixa incidência
@@ -245,10 +253,13 @@ def RunDataProcessingFromParameterType1(file_path):
     # Calcula da velocidade e aceleração
     model.SpeedAndAccDetector()
     # Criar frames interpolados
+    
+    print(model.df)
     df_new = model.GhostFramesGenerator(model.df[model.id_column].unique(),step=1)
     model.df = pd.concat([model.df,df_new],ignore_index=True)
     model.df = model.df.sort_values(by=[model.frame_column,model.traffic_lane_column,model.x_centroid_column])
 
+    model.df.to_csv(model.processed_file,index=False)
     print("Fim da execussão")
 
     return model
