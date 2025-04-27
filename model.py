@@ -459,20 +459,13 @@ class  YoloMicroscopicDataProcessing:
             with open(file_path,'w',encoding="utf-8",errors="ignore") as f:  
                 json.dump(cfg,f,indent=4)
 
-    def RemoveLowIncidence(self,threshold:int=20,logs=True):
+    def RemoveLowIncidence(self,threshold:int=20):
         '''
         Remove os ids com baixa incidência, abaixo do limite definido
-
-        A função não retorna valor
+        Não retorna valor
         '''
-
         df_incidence = self.df.groupby(self.id_column).count().sort_values(self.frame_column)[self.frame_column]
         mask = self.df[self.id_column].isin(df_incidence[df_incidence>=threshold].index.tolist())
-
-        if logs:
-            removed_ids = self.df[-mask][self.id_column].unique().tolist()
-            print(f'{len(removed_ids)} objetos foram removidos: {removed_ids}')
-
         self.df = self.df[mask]
 
     def GhostFramesGenerator(self,id_vehicle_list:list,range_frame:tuple=None,step=1,max_abs_generator=300):
