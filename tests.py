@@ -10,7 +10,6 @@ import os
 
 # Corrigir raw file path
 root_json_path = "data/json"
-
 all_files = os.listdir(root_json_path)
 count = 1
 for file_name  in all_files:

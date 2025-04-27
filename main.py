@@ -154,6 +154,9 @@ def RunHd4Analysis(file_path):
     return result
 
 def RunDataProcessingFromParameterType1(file_path):
+    start_timer = timeit.default_timer()
+    print(f"Processando... {file_path}")
+
     model = YoloMicroscopicDataProcessing()
     model.ImportFromJSON(file_path)
 
@@ -259,17 +262,24 @@ def RunDataProcessingFromParameterType1(file_path):
     model.df = model.df.sort_values(by=[model.frame_column,model.traffic_lane_column,model.x_centroid_column])
 
     model.df.to_csv(model.processed_file,index=False)
-    print("Fim da execussão")
-
-    return model
+    print("Fim da execussão",model.processed_file)
+    
+    stop_timer = timeit.default_timer()
+    count_timer = stop_timer - start_timer
+    print(f"\tDuração: {int(count_timer//60)}min:{int(count_timer%60)}s")
 
 if __name__=="__main__":
-    # model = RunDataProcessingFromParameterType1("data/json/BM_x_PA_D5_0001.json")
-    model = YoloMicroscopicDataProcessing()
-    model.ImportFromJSON("data/json/BM_x_PA_D5_0001.json",post_processing=model.PostProcessing1)
-    result = model.Hd1Analysis(4)
-    result.to_excel("test.xlsx")
-    print(result)
+    
+    root_json_path = "data/json"
+    all_files = os.listdir(root_json_path)
+
+    for file_name  in all_files:
+        try:
+            file_path = os.path.join(root_json_path,file_name)
+            RunDataProcessingFromParameterType1(file_path)
+        except Exception as e:
+            print(e)
+            
 
     # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     # output_folder = "data/hd4"
