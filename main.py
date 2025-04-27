@@ -187,10 +187,10 @@ def RunDataProcessingFromParameterType1(file_path):
         })
     else:
         model.df = model.df.rename(columns={
-            'x_esquerda':model.p1_x_bb_column, # Comentar depois
-            'y_superior':model.p1_y_bb_column, # Comentar depois
-            'x_largura':model.vehicle_length_column, # Comentar depois
-            'y_altura':model.vehicle_width_column, # Comentar depois
+            'x_esquerda':model.p1_x_bb_column,
+            'y_superior':model.p1_y_bb_column,
+            'x_largura':model.vehicle_length_column,
+            'y_altura':model.vehicle_width_column,
         })
 
         model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
@@ -245,6 +245,7 @@ def RunDataProcessingFromParameterType1(file_path):
     # Arredonda o tempo
     model.df[model.instant_column] = model.df[model.instant_column].round(4)
     # Id geral, combinando id e tempo
+    model.df[model.id_column] = model.df[model.id_column].astype(int)
     model.df[model.frame_column] = model.df[model.frame_column].astype(int)
     model.df[model.global_id_column] = model.df[model.id_column].astype(str) + '@' + model.df[model.frame_column].astype(str)
 
@@ -253,8 +254,6 @@ def RunDataProcessingFromParameterType1(file_path):
     # Calcula da velocidade e aceleração
     model.SpeedAndAccDetector()
     # Criar frames interpolados
-    
-    print(model.df)
     df_new = model.GhostFramesGenerator(model.df[model.id_column].unique(),step=1)
     model.df = pd.concat([model.df,df_new],ignore_index=True)
     model.df = model.df.sort_values(by=[model.frame_column,model.traffic_lane_column,model.x_centroid_column])
@@ -265,8 +264,12 @@ def RunDataProcessingFromParameterType1(file_path):
     return model
 
 if __name__=="__main__":
-    model = RunDataProcessingFromParameterType1("data/json/BM_x_PA_D5_0001.json")
-    print(model.df)
+    # model = RunDataProcessingFromParameterType1("data/json/BM_x_PA_D5_0001.json")
+    model = YoloMicroscopicDataProcessing()
+    model.ImportFromJSON("data/json/BM_x_PA_D5_0001.json",post_processing=model.PostProcessing1)
+    result = model.Hd1Analysis(4)
+    result.to_excel("test.xlsx")
+    print(result)
 
     # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     # output_folder = "data/hd4"

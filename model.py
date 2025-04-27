@@ -326,8 +326,23 @@ class  YoloMicroscopicDataProcessing:
         # Salvar arquivo        
         with open(file_path,'w',encoding="utf-8",errors="ignore") as f:  
             json.dump(cfg,f,indent=4)
+    
+    def PostProcessing1(self):
+        """
+        Pós processamento aplicálvel a depender do uso
+        Esta remove observações (frames) de bicicletas e pedestres
+        E ids (trajetória completa) se não tiver faixa associada em todos os frames
+        Não retorna valor, altera diretamente o self.df
+        """
+        # Remove observações de bicicletas e pedestres
+        self.df = self.df[-self.df[self.vehicle_type_column].isin(["Bicicleta","Pedestre"])]
+        
+        # Remove veículos (ids) que só apresentam np.nan em self.traffic_lane_column
+        df_traffic_lane_agg = self.df.groupby(self.id_column).agg({self.traffic_lane_column:lambda values:values.isna().all()}).reset_index(drop=False)
+        df_traffic_lane_agg = df_traffic_lane_agg[-df_traffic_lane_agg[self.traffic_lane_column]]
+        self.df = self.df[self.df[self.id_column].isin(df_traffic_lane_agg[self.id_column].tolist())]
 
-    def ImportFromJSON(self,file_path):
+    def ImportFromJSON(self,file_path,post_processing=None):
         """
         Puxa os dados e metadados de um arquivo .json padronizado
         Retorna True se todas as operações forem realizadas
@@ -429,6 +444,12 @@ class  YoloMicroscopicDataProcessing:
         # Tenta atribuir o arquivo
         try:
             self.df = pd.read_csv(self.processed_file)
+            self.df[self.id_column] = self.df[self.id_column].astype(int)
+            self.df[self.frame_column] = self.df[self.frame_column].astype(int)
+            # self.df[self.traffic_lane_column] = self.df[self.traffic_lane_column].astype(int)
+
+            if post_processing!=None:
+                post_processing()
             print("Trajetórias importadas com sucesso!")
         except:
             self.df = pd.DataFrame()
@@ -852,6 +873,7 @@ class  YoloMicroscopicDataProcessing:
         ignore_vehicle_types_list_order:list=None,
         ignore_vehicle_types_list_distance:list=None,
         distance_between_vehicles_lim:float=7,
+        ignore_ext_interference=True
         ):
         '''
         Retorna os veículos em fila por faixa
@@ -864,10 +886,12 @@ class  YoloMicroscopicDataProcessing:
             ignore_vehicle_types_list_distance = self.vehicle_category_list["two_wheel"] + self.vehicle_category_list["walk"]
 
         # Dados válidos
-        df_analysed = self.df[-self.df[self.vehicle_type_column].isin(ignore_vehicle_types_list_order)]
-        df_analysed = df_analysed[df_analysed[self.frame_column]==frame]
+        df_analysed = self.df[self.df[self.frame_column]==frame]
+        df_analysed = df_analysed[-df_analysed[self.vehicle_type_column].isin(ignore_vehicle_types_list_order)]
         df_analysed = df_analysed.sort_values(by=self.x_head_column,ascending=False)
 
+        if ignore_ext_interference:
+            df_analysed = df_analysed.dropna(subset=self.traffic_lane_column)
         # Se não tiver nenhum veículo, retona o dataframe vazio
         if df_analysed.empty:
             return df_analysed
@@ -937,7 +961,9 @@ class  YoloMicroscopicDataProcessing:
 
             # Atualiza os dados, removendo os veículos das filas já computadas
             df_analysed = df_analysed[-df_analysed[self.id_column].isin(df_queue[self.id_column])].sort_values(by=self.x_head_column,ascending=False)
-        # print(df_queue[["frame","id","vehicle_type","queue_position","first_traffic_lane_vehicle","distance_between_vehicles","first_group"]])
+
+        df_queue["first_traffic_lane_vehicle"] = df_queue["first_traffic_lane_vehicle"].astype(int)
+        
         return df_queue
 
     def InstantCrossingSection(
