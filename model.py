@@ -342,6 +342,10 @@ class  YoloMicroscopicDataProcessing:
         df_traffic_lane_agg = df_traffic_lane_agg[-df_traffic_lane_agg[self.traffic_lane_column]]
         self.df = self.df[self.df[self.id_column].isin(df_traffic_lane_agg[self.id_column].tolist())]
 
+        # self.df = self.df.dropna(subset=self.traffic_lane_column)
+
+        self.df = self.df.reset_index(drop=True)
+
     def ImportFromJSON(self,file_path,post_processing=None):
         """
         Puxa os dados e metadados de um arquivo .json padronizado
@@ -1428,7 +1432,7 @@ class  YoloMicroscopicDataProcessing:
             )
 
         # Quantidade de corredores virtuais (centro e laterais)
-        number_virtual_lane = len(self.df[self.traffic_lane_column].unique()) + 1
+        number_virtual_lane = self.traffic_lane_polygon["id"].astype(int).max()
         virtual_lane_list = [i for i in range(1,number_virtual_lane+1)]
 
         # Dataset principal

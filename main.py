@@ -119,7 +119,7 @@ def UpdateFormatToJSON(root_path):
 
 def RunHd1Analysis(file_path):
     model = YoloMicroscopicDataProcessing()
-    model.ImportFromJSON(file_path)
+    model.ImportFromJSON(file_path,post_processing=model.PostProcessing1)
 
     result = []
     for t in model.green_open_time:
@@ -137,7 +137,7 @@ def RunHd1Analysis(file_path):
 
 def RunHd4Analysis(file_path):
     model = YoloMicroscopicDataProcessing()
-    model.ImportFromJSON(file_path)
+    model.ImportFromJSON(file_path,post_processing=model.PostProcessing1)
 
     result = []
     for t in model.green_open_time:
@@ -160,162 +160,161 @@ def RunDataProcessingFromParameterType1(file_path):
     model = YoloMicroscopicDataProcessing()
     model.ImportFromJSON(file_path)
 
-    # Importa do arquivo bruto
-    model.df = pd.read_csv(model.raw_file)
+    if not os.path.exists(model.processed_file):
 
-    # Renomear colunas
-    old_pattern = True if 'x_esquerda' in model.df.columns.tolist() else False
-    # Ajusta os nomes das colunas para o padrão
-    model.df = model.df.rename(columns={
-        'id':model.id_column,
-        'tipo':model.vehicle_type_column,
-        'conf':model.conf_YOLO_column,
-        'faixa':model.traffic_lane_column,
-        'instante':model.instant_column,
-    })
-    
-    model.df[model.frame_column] = model.df[model.frame_column].astype(int)
-    model.df[model.id_column] = model.df[model.id_column].astype(int)
-    model.df[model.vehicle_type_column] = model.df[model.vehicle_type_column].astype("category")
-    model.df[model.conf_YOLO_column] = model.df[model.conf_YOLO_column].astype(float)
-    model.df[model.traffic_lane_column] = model.df[model.traffic_lane_column].astype(int)
-    model.df[model.instant_column] = model.df[model.instant_column].astype(float)
+        # Importa do arquivo bruto
+        model.df = pd.read_csv(model.raw_file)
 
-    if not old_pattern:
+        # Renomear colunas
+        old_pattern = True if 'x_esquerda' in model.df.columns.tolist() else False
+        # Ajusta os nomes das colunas para o padrão
         model.df = model.df.rename(columns={
-            'x1':model.p1_x_bb_column,
-            'y1':model.p1_y_bb_column,
-            'x2':model.p2_x_bb_column,
-            'y2':model.p2_y_bb_column,
+            'id':model.id_column,
+            'tipo':model.vehicle_type_column,
+            'conf':model.conf_YOLO_column,
+            'faixa':model.traffic_lane_column,
+            'instante':model.instant_column,
         })
+        
+        model.df[model.frame_column] = model.df[model.frame_column].astype(int)
+        model.df[model.id_column] = model.df[model.id_column].astype(int)
+        model.df[model.vehicle_type_column] = model.df[model.vehicle_type_column].astype("category")
+        model.df[model.conf_YOLO_column] = model.df[model.conf_YOLO_column].astype(float)
+        model.df[model.traffic_lane_column] = model.df[model.traffic_lane_column].astype(int)
+        model.df[model.instant_column] = model.df[model.instant_column].astype(float)
+
+        if not old_pattern:
+            model.df = model.df.rename(columns={
+                'x1':model.p1_x_bb_column,
+                'y1':model.p1_y_bb_column,
+                'x2':model.p2_x_bb_column,
+                'y2':model.p2_y_bb_column,
+            })
+        else:
+            model.df = model.df.rename(columns={
+                'x_esquerda':model.p1_x_bb_column,
+                'y_superior':model.p1_y_bb_column,
+                'x_largura':model.vehicle_length_column,
+                'y_altura':model.vehicle_width_column,
+            })
+
+            model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
+            model.df[model.p2_y_bb_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]
+        
+        # Ajuste do tipo de veículo
+        for id in model.df[model.id_column].unique():
+            model.df.loc[model.df[model.id_column]==id,model.vehicle_type_column] = model.FindVehicleType(id)
+
+        # Converter variáveis de posição e distancia de pixels para metro
+        model.df[model.p1_x_bb_column] = model.mpp*model.df[model.p1_x_bb_column]
+        model.df[model.p1_y_bb_column] = model.mpp*model.df[model.p1_y_bb_column]
+        model.df[model.p2_x_bb_column] = model.mpp*model.df[model.p2_x_bb_column]
+        model.df[model.p2_y_bb_column] = model.mpp*model.df[model.p2_y_bb_column]
+        
+        # Cálculo das dimensões do veículo
+        model.df[model.vehicle_length_column] = model.df[model.p2_x_bb_column]-model.df[model.p1_x_bb_column]
+        model.df[model.vehicle_width_column] = model.df[model.p2_y_bb_column]-model.df[model.p1_y_bb_column]
+
+        # Rotação horizontal se necessário
+        if model.flip_h:
+            # Coordenada horizontal à esquerda
+            model.df[model.p1_x_bb_column] = model.video_width - model.df[model.p1_x_bb_column] - model.df[model.vehicle_length_column]
+            # Recalculo do ponto à direita
+            model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
+        
+        if model.flip_v:
+            # Coordenada horizontal à esquerda
+            model.df[model.p1_y_bb_column] = model.video_heigth - model.df[model.p1_y_bb_column] - model.df[model.vehicle_width_column]
+            # Recalculo do ponto à direita
+            model.df[model.p2_y_bb_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]
+        
+        # Cálculo do centroide x e y
+        model.df[model.y_centroid_column] = (model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]*0.5)
+        model.df[model.x_centroid_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]*0.5
+        
+        # Ajuste do número da faixa
+        model.df = gpd.GeoDataFrame(model.df,
+                                    geometry=gpd.points_from_xy(model.df[model.x_centroid_column],model.df[model.y_centroid_column]),
+                                    crs="EPSG:31984")
+
+        model.df = model.df.overlay(model.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union')
+        model.df[model.traffic_lane_column] = model.df["tl_polygon"]
+        model.df = pd.DataFrame(model.df.drop(columns=["tl_polygon","geometry"]))
+
+        # Cálculo de posições estrátégicas longitudinais o veículo
+        # Fundo do veículo
+        model.df[model.x_tail_column] = model.df[model.p1_x_bb_column]
+        # Frente do veículo
+        model.df[model.x_head_column] = model.df[model.p2_x_bb_column]
+
+        # Arredonda o tempo
+        model.df[model.instant_column] = model.df[model.instant_column].round(4)
+        # Id geral, combinando id e tempo
+        model.df[model.id_column] = model.df[model.id_column].astype(int)
+        model.df[model.frame_column] = model.df[model.frame_column].astype(int)
+        model.df[model.global_id_column] = model.df[model.id_column].astype(str) + '@' + model.df[model.frame_column].astype(str)
+
+        # Remove valores com baixa incidência
+        model.RemoveLowIncidence()
+        # Calcula da velocidade e aceleração
+        model.SpeedAndAccDetector()
+        # Criar frames interpolados
+        df_new = model.GhostFramesGenerator(model.df[model.id_column].unique(),step=1)
+        model.df = pd.concat([model.df,df_new],ignore_index=True)
+        model.df = model.df.sort_values(by=[model.frame_column,model.traffic_lane_column,model.x_centroid_column])
+
+        model.df.to_csv(model.processed_file,index=False)
+        print("Fim da execussão",model.processed_file)
+        
+        stop_timer = timeit.default_timer()
+        count_timer = stop_timer - start_timer
+        print(f"\tDuração: {int(count_timer//60)}min:{int(count_timer%60)}s")
     else:
-        model.df = model.df.rename(columns={
-            'x_esquerda':model.p1_x_bb_column,
-            'y_superior':model.p1_y_bb_column,
-            'x_largura':model.vehicle_length_column,
-            'y_altura':model.vehicle_width_column,
-        })
-
-        model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
-        model.df[model.p2_y_bb_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]
-    
-    # Ajuste do tipo de veículo
-    for id in model.df[model.id_column].unique():
-        model.df.loc[model.df[model.id_column]==id,model.vehicle_type_column] = model.FindVehicleType(id)
-
-    # Converter variáveis de posição e distancia de pixels para metro
-    model.df[model.p1_x_bb_column] = model.mpp*model.df[model.p1_x_bb_column]
-    model.df[model.p1_y_bb_column] = model.mpp*model.df[model.p1_y_bb_column]
-    model.df[model.p2_x_bb_column] = model.mpp*model.df[model.p2_x_bb_column]
-    model.df[model.p2_y_bb_column] = model.mpp*model.df[model.p2_y_bb_column]
-    
-    # Cálculo das dimensões do veículo
-    model.df[model.vehicle_length_column] = model.df[model.p2_x_bb_column]-model.df[model.p1_x_bb_column]
-    model.df[model.vehicle_width_column] = model.df[model.p2_y_bb_column]-model.df[model.p1_y_bb_column]
-
-    # Rotação horizontal se necessário
-    if model.flip_h:
-        # Coordenada horizontal à esquerda
-        model.df[model.p1_x_bb_column] = model.video_width - model.df[model.p1_x_bb_column] - model.df[model.vehicle_length_column]
-        # Recalculo do ponto à direita
-        model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
-    
-    if model.flip_v:
-        # Coordenada horizontal à esquerda
-        model.df[model.p1_y_bb_column] = model.video_heigth - model.df[model.p1_y_bb_column] - model.df[model.vehicle_width_column]
-        # Recalculo do ponto à direita
-        model.df[model.p2_y_bb_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]
-    
-    # Cálculo do centroide x e y
-    model.df[model.y_centroid_column] = (model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]*0.5)
-    model.df[model.x_centroid_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]*0.5
-    
-    # Ajuste do número da faixa
-    model.df = gpd.GeoDataFrame(model.df,
-                                geometry=gpd.points_from_xy(model.df[model.x_centroid_column],model.df[model.y_centroid_column]),
-                                crs="EPSG:31984")
-
-    model.df = model.df.overlay(model.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union')
-    model.df[model.traffic_lane_column] = model.df["tl_polygon"]
-    model.df = pd.DataFrame(model.df.drop(columns=["tl_polygon","geometry"]))
-
-    # Cálculo de posições estrátégicas longitudinais o veículo
-    # Fundo do veículo
-    model.df[model.x_tail_column] = model.df[model.p1_x_bb_column]
-    # Frente do veículo
-    model.df[model.x_head_column] = model.df[model.p2_x_bb_column]
-
-    # Arredonda o tempo
-    model.df[model.instant_column] = model.df[model.instant_column].round(4)
-    # Id geral, combinando id e tempo
-    model.df[model.id_column] = model.df[model.id_column].astype(int)
-    model.df[model.frame_column] = model.df[model.frame_column].astype(int)
-    model.df[model.global_id_column] = model.df[model.id_column].astype(str) + '@' + model.df[model.frame_column].astype(str)
-
-    # Remove valores com baixa incidência
-    model.RemoveLowIncidence()
-    # Calcula da velocidade e aceleração
-    model.SpeedAndAccDetector()
-    # Criar frames interpolados
-    df_new = model.GhostFramesGenerator(model.df[model.id_column].unique(),step=1)
-    model.df = pd.concat([model.df,df_new],ignore_index=True)
-    model.df = model.df.sort_values(by=[model.frame_column,model.traffic_lane_column,model.x_centroid_column])
-
-    model.df.to_csv(model.processed_file,index=False)
-    print("Fim da execussão",model.processed_file)
-    
-    stop_timer = timeit.default_timer()
-    count_timer = stop_timer - start_timer
-    print(f"\tDuração: {int(count_timer//60)}min:{int(count_timer%60)}s")
+        print(model.processed_file, "já processado!")
 
 if __name__=="__main__":
     
-    root_json_path = "data/json"
-    all_files = os.listdir(root_json_path)
+    # root_json_path = "data/json"
+    # all_files = os.listdir(root_json_path)
 
-    for file_name  in all_files:
-        try:
-            file_path = os.path.join(root_json_path,file_name)
-            RunDataProcessingFromParameterType1(file_path)
-        except Exception as e:
-            print(e)
-            
+    # for file_name  in all_files:
+    #     try:
+    #         file_path = os.path.join(root_json_path,file_name)
+    #         RunDataProcessingFromParameterType1(file_path)
+    #     except Exception as e:
+    #         print(e)
 
-    # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
-    # output_folder = "data/hd4"
-    # run = Main()
-    # run.WorkflowPattern(
-    #     root_path=root_path,
-    #     output_folder=output_folder,
-    #     prefix="Hd4_",
-    #     func=RunHd4Analysis)
+    root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
+    output_folder = "data/hd4"
+    run = Main()
+    run.WorkflowPattern(
+        root_path=root_path,
+        output_folder=output_folder,
+        prefix="Hd4_",
+        func=RunHd4Analysis)
     
-    # # Concatenar resumo
-    # df = []
-    # all_files = os.listdir(output_folder)
-    # for f in all_files:
-    #     df_ = pd.read_csv(os.path.join(output_folder,f))
-    #     df.append(df_)
-    # df = pd.concat(df,ignore_index=True)
-    # df.to_excel("data/summary/hd4_23_04_25.xlsx",index=False)
+    # Concatenar resumo
+    df = []
+    all_files = os.listdir(output_folder)
+    for f in all_files:
+        df_ = pd.read_csv(os.path.join(output_folder,f))
+        df.append(df_)
+    df = pd.concat(df,ignore_index=True)
+    df.to_excel("data/summary/hd4_29_04_25.xlsx",index=False)
 
-    # output_folder = "data/hd1"
-    # run = Main()
-    # run.WorkflowPattern(
-    #     root_path=root_path,
-    #     output_folder=output_folder,
-    #     prefix="Hd1_",
-    #     func=RunHd1Analysis)
+    output_folder = "data/hd1"
+    run = Main()
+    run.WorkflowPattern(
+        root_path=root_path,
+        output_folder=output_folder,
+        prefix="Hd1_",
+        func=RunHd1Analysis)
     
-    # # Concatenar resumo
-    # df = []
-    # all_files = os.listdir(output_folder)
-    # for f in all_files:
-    #     df_ = pd.read_csv(os.path.join(output_folder,f))
-    #     df.append(df_)
-    # df = pd.concat(df,ignore_index=True)
-    # df.to_excel("data/summary/hd1_23_04_25.xlsx",index=False)
-
-    
-
-    
+    # Concatenar resumo
+    df = []
+    all_files = os.listdir(output_folder)
+    for f in all_files:
+        df_ = pd.read_csv(os.path.join(output_folder,f))
+        df.append(df_)
+    df = pd.concat(df,ignore_index=True)
+    df.to_excel("data/summary/hd1_29_04_25.xlsx",index=False)
