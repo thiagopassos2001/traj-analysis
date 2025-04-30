@@ -2466,7 +2466,7 @@ class  YoloMicroscopicDataProcessing:
             id_vehicle_follower=row["idj"][pos],
             frame=frame,
             max_long_dist_overlap=max_long_dist_overlap,
-            side_offset_vehicle=side_offset_vehicle)[self.id_column].tolist(),axis=1)
+            side_offset_vehicle=side_offset_vehicle)[self.id_column].unique().tolist(),axis=1)
 
             # Remover ids já contabilizados em outras classes
             df_analysis[f"idQmev{pos}{pos+1}j"] = df_analysis.apply(lambda row:[i for i in row[f"idQmev{pos}{pos+1}j"] if i not in row["idMcj"]],axis=1)
@@ -2534,6 +2534,31 @@ class  YoloMicroscopicDataProcessing:
         df_analysis["id1"] = df_analysis["id1"].astype(int)
         df_analysis["id4"] = df_analysis["id4"].astype(int)
 
+        # Headway entre---------------------------------------------------------------------------------
+        # Veículos e 4 rodas
+        df_analysis["idHd1j"] = df_analysis["idj"].apply(lambda value:dict(zip(value,[round(self.HdFromEndMWA(i,frame)[0],2) for i in value])))
+        
+        # Moto à frente (crítico)
+        df_analysis["idHd2allj"] = df_analysis["idQmfj"].apply(lambda value:dict(zip(
+            list(value.keys()),[round(self.HdFromEndMWA(i,frame)[0],2) for i in list(value.keys())])) if (len(list(value.keys()))>0) and float(value[max(value)])>0 else {0:0})
+        df_analysis["idHd2j"] = df_analysis["idHd2allj"].apply(lambda value:max(value, key=value.get) if len(value)>0 else "null")
+        df_analysis["idHd2j"] = df_analysis.apply(lambda row:{row["idHd2j"]:row["idHd2allj"][row["idHd2j"]]} if row["idHd2j"]!="null" else {},axis=1)
+
+        # # Moto entre veículos
+        # df_analysis["idHd3allj"] = df_analysis["idQmevj"].apply(lambda value:dict(zip(
+        #     list(value.values()),
+        #     [round(self.HdFromEndMWA(i,frame)[0],2) for i in sum(list(value.values()),[])])) if len(sum(list(value.values()),[]))>0 else {})
+        # df_analysis["idHd3j"] = df_analysis["idHd3allj"].apply(lambda value:max(value, key=value.get) if len(value)>0 else "null")
+        # df_analysis["idHd3j"] = df_analysis.apply(lambda row:{row["idHd3j"]:row["idHd3allj"][row["idHd3j"]]} if row["idHd3j"]!="null" else {},axis=1)
+        
+        # União dos ids válidos
+        df_analysis["idHdj"] = df_analysis.apply(lambda row:ConcatDicts([row["idHd1j"],row["idHd2j"]],sort_values=True),axis=1)
+        df_analysis["idHdj"] = df_analysis["idHdj"].apply(lambda value:dict(zip(value.keys(),[round(i-j,2) for i,j in zip(list(value.values()),[0]+list(value.values())[:-1])])))
+        df_analysis["MaxHdj"] = df_analysis["idHdj"].apply(lambda value:max(value, key=value.get) if len(value)>0 else "null")
+        df_analysis["MaxHdj"] = df_analysis.apply(lambda row:{row["MaxHdj"]:row["idHdj"][row["MaxHdj"]]} if row["MaxHdj"]!="null" else {},axis=1)
+
+        # ---------------------------------------------------------------------------------
+
         # Unir com os reports
         df_analysis = pd.concat([df_analysis,df_report],ignore_index=True).sort_values(self.traffic_lane_column)
 
@@ -2543,7 +2568,6 @@ class  YoloMicroscopicDataProcessing:
             self.x_tail_column,
             "idMcj",
             "idQmfXYj",
-            "Qmf00j",
             "idQmcp1j",
             "idQmcp2j",
             "idQmcp3j",
@@ -3343,3 +3367,16 @@ def AnyValueInList(list1,list2):
         pass
 
     return check
+
+def ConcatDicts(list_dicts,sort_values=False,ascending=True):
+    """
+    Concatena dicionários python, tratando vazios
+    """
+    result = {}
+    for dct in list_dicts:
+        if len(dct)>0:
+            result.update(dct)
+    
+    if sort_values:
+        result = dict(sorted(result.items(),key=lambda item:item[1],reverse=not ascending))
+    return result
