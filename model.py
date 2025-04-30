@@ -2113,6 +2113,7 @@ class  YoloMicroscopicDataProcessing:
             dist_between_motorcycle_ahead:float=1,      # dbma
             dist_between_motorcycle_behind:float=2.5,   # dbmb
             max_long_dist_overlap=0.3,
+            max_lat_dist_virtual_lane=0.7,
             frame_convert_mode="fps",
             fps=None,
             ):
@@ -2205,7 +2206,7 @@ class  YoloMicroscopicDataProcessing:
         df_analysis["idQmcpj"] = df_analysis.apply(lambda row:self.SideVehicle(
             row["id1"],
             frame,
-            max_lat_dist=1,
+            max_lat_dist=max_lat_dist_virtual_lane,
             overlap_lon=-dbma,
             ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"]).query(
                 f"{self.x_tail_column} <= {row[self.x_head_column]}+{dbma} & {self.x_head_column} >= {row[self.x_head_column]}-{dbmb}"
@@ -2289,7 +2290,8 @@ class  YoloMicroscopicDataProcessing:
             dist_between_motorcycle_ahead:float=1,      # dbma
             dist_between_motorcycle_behind:float=2.5,   # dbmb
             lat_virtual_lane_overlap:float=0.4,
-            max_distance_invading_section:float=1
+            max_distance_invading_section:float=1,
+            max_lat_dist_virtual_lane:float=0.7,
             ):
         """
         Retorna um dataframe com variáveis necessárias para analisar
@@ -2509,7 +2511,7 @@ class  YoloMicroscopicDataProcessing:
                 row["idj"][pos-1],
                 frame,
                 overlap_lon=-dbma,
-                max_lat_dist=1,
+                max_lat_dist=max_lat_dist_virtual_lane,
                 ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"]).query(
                     f"{self.x_tail_column} <= {row[self.x_head_column][pos-1]}+{dbma} & {self.x_head_column} >= {row[self.x_head_column][pos-1]}-{dbmb}"
                 )[self.id_column].tolist(),axis=1)
