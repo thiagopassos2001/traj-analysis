@@ -2535,28 +2535,41 @@ class  YoloMicroscopicDataProcessing:
         df_analysis["id4"] = df_analysis["id4"].astype(int)
 
         # Headway entre---------------------------------------------------------------------------------
-        # Veículos e 4 rodas
-        df_analysis["idHd1j"] = df_analysis["idj"].apply(lambda value:dict(zip(value,[round(self.HdFromEndMWA(i,frame)[0],2) for i in value])))
-        
-        # Moto à frente (crítico)
-        df_analysis["idHd2allj"] = df_analysis["idQmfj"].apply(lambda value:dict(zip(
-            list(value.keys()),[round(self.HdFromEndMWA(i,frame)[0],2) for i in list(value.keys())])) if (len(list(value.keys()))>0) and float(value[max(value)])>0 else {0:0})
-        df_analysis["idHd2j"] = df_analysis["idHd2allj"].apply(lambda value:max(value, key=value.get) if len(value)>0 else "null")
-        df_analysis["idHd2j"] = df_analysis.apply(lambda row:{row["idHd2j"]:row["idHd2allj"][row["idHd2j"]]} if row["idHd2j"]!="null" else {},axis=1)
+        last_frame = frame + int(df_analysis["hd4_time"].max()*self.fps)
+        headway_sequence = self.GroupVechiclesCrossingSection(
+            start_frame=frame,
+            last_frame=last_frame,
+            alignment_check=True
+        )
 
-        # # Moto entre veículos
-        # df_analysis["idHd3allj"] = df_analysis["idQmevj"].apply(lambda value:dict(zip(
-        #     list(value.values()),
-        #     [round(self.HdFromEndMWA(i,frame)[0],2) for i in sum(list(value.values()),[])])) if len(sum(list(value.values()),[]))>0 else {})
-        # df_analysis["idHd3j"] = df_analysis["idHd3allj"].apply(lambda value:max(value, key=value.get) if len(value)>0 else "null")
-        # df_analysis["idHd3j"] = df_analysis.apply(lambda row:{row["idHd3j"]:row["idHd3allj"][row["idHd3j"]]} if row["idHd3j"]!="null" else {},axis=1)
-        
-        # União dos ids válidos
-        df_analysis["idHdj"] = df_analysis.apply(lambda row:ConcatDicts([row["idHd1j"],row["idHd2j"]],sort_values=True),axis=1)
-        df_analysis["idHdj"] = df_analysis["idHdj"].apply(lambda value:dict(zip(value.keys(),[round(i-j,2) for i,j in zip(list(value.values()),[0]+list(value.values())[:-1])])))
-        df_analysis["MaxHdj"] = df_analysis["idHdj"].apply(lambda value:max(value, key=value.get) if len(value)>0 else "null")
-        df_analysis["MaxHdj"] = df_analysis.apply(lambda row:{row["MaxHdj"]:row["idHdj"][row["MaxHdj"]]} if row["MaxHdj"]!="null" else {},axis=1)
+        # Corrigir alinhamento
+        for index,row in df_analysis.iterrows():
+            alignment_set = headway_sequence[headway_sequence[self.id_column]==row["id1"]]["alignment"].values[0]
+            headway_sequence.loc[headway_sequence[self.id_column].isin(row["idj"]),"alignment"] = alignment_set
+            df_analysis.loc[index,"alignment"] = alignment_set
 
+        headway_sequence = headway_sequence.sort_values(by=["alignment",self.frame_column]).reset_index()
+        
+        for index,row in headway_sequence.iterrows():
+            if index==0:
+                headway_sequence.loc[index,"queue_position"] = 1
+            elif row["alignment"]!=headway_sequence["alignment"].values[index-1]:
+                headway_sequence.loc[index,"queue_position"] = 1
+            else:
+                headway_sequence.loc[index,"queue_position"] = headway_sequence["queue_position"].values[index-1] + 1
+        
+        hs = []
+        for index,row in df_analysis.iterrows():
+            value = headway_sequence[headway_sequence['alignment']==row["alignment"]]
+            hd = [float(instant)]+value[self.instant_column].tolist()
+            hd = [j-i for i,j in zip(hd[:-1],hd[1:])]
+            value["hd"] = hd
+            hs.append(value)
+
+            df_analysis.loc[index,"MaxHdj"] = [{int(value[value["hd"]==max(hd)][self.id_column].values[0]):round(max(hd),2)}]
+        
+        df_analysis["MaxHdj"] = df_analysis["MaxHdj"].apply(lambda value:value[0])
+        hs = pd.concat(hs,ignore_index=False)
         # ---------------------------------------------------------------------------------
 
         # Unir com os reports
@@ -2575,6 +2588,7 @@ class  YoloMicroscopicDataProcessing:
             "idQmev12j",
             "idQmev23j",
             "idQmev34j",
+            "alignment"
             ])
 
         # Insere a informação de frame e instante de tempo para auxiliar na verificação
@@ -2582,7 +2596,7 @@ class  YoloMicroscopicDataProcessing:
         df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
         df_analysis.insert(0,self.frame_column,frame)
 
-        return df_analysis
+        return df_analysis,hs
     
     def MotorcycleAheadFirstAnalysisDocAlessandro(
             self,
@@ -3409,14 +3423,15 @@ class  YoloMicroscopicDataProcessing:
                     df_dict["alignment"].append(count_alignment)
                     df_dict["queue_position"].append(count_pos)
 
-                    side_offset_vehicle = 0.1 if row[self.vehicle_type_column] in ["Moto","Bicicleta","Pedestre"] else -0.1
+                    side_offset_vehicle = 0.1 if row[self.vehicle_type_column] in ["Moto","Bicicleta","Pedestre"] else -0.2
                     vehicle_behind = self.FirstVehicleBehind(
                         id_vehicle=row[self.id_column],
                         frame=row[self.frame_column],
                         side_offset_vehicle=side_offset_vehicle,
                         max_longitudinal_distance_overlap=max_longitudinal_distance_overlap
                     )
-                    mask_vehicle_behind = df[self.id_column]==vehicle_behind[self.id_column].values[0]
+                    if not vehicle_behind.empty:
+                        mask_vehicle_behind = df[self.id_column]==vehicle_behind[self.id_column].values[0]
 
                     while (not vehicle_behind.empty) and mask_vehicle_behind.any() and (not vehicle_behind[self.id_column].values[0] in df_dict[self.id_column]):
                         # Atualiza os dados do próximo veículo
@@ -3427,7 +3442,7 @@ class  YoloMicroscopicDataProcessing:
                         # print(row[self.id_column],vehicle_behind[self.id_column].values[0],mask_vehicle_behind.any(),count_alignment)
 
                         frame = df[mask_vehicle_behind][self.frame_column].values[0]
-                        side_offset_vehicle = 0.1 if vehicle_behind[self.vehicle_type_column].values[0] in ["Moto","Bicicleta","Pedestre"] else -0.1
+                        side_offset_vehicle = 0.1 if vehicle_behind[self.vehicle_type_column].values[0] in ["Moto","Bicicleta","Pedestre"] else -0.2
 
                         vehicle_behind = self.FirstVehicleBehind(
                             id_vehicle=vehicle_behind[self.id_column].values[0],
@@ -3570,16 +3585,23 @@ def RunHd4Analysis(file_path):
     model.ImportFromJSON(file_path,post_processing=model.PostProcessing1)
 
     result = []
+    hd = []
     for t in model.green_open_time:
         # try:
-        result_ = model.Hd4Analysis(t)
+        result_,hd_ = model.Hd4Analysis(t)
         if not result_.empty:
             result.append(result_)
+            hd.append(hd_)
         # except Exception as e:
         #     print(f"Erro {e} no {os.path.basename(file_path)} em {int(t//60)}:{int(t%60)}")
 
     result = pd.concat(result,ignore_index=True)
+    hd = pd.concat(hd,ignore_index=True)
+
     result.insert(0,"file",os.path.basename(file_path))
+    hd.insert(0,"file",os.path.basename(file_path))
+
+    hd.to_csv(os.path.join("data/hd_check",os.path.basename(file_path).replace(".json",".csv")),index=False)
 
     return result
 
