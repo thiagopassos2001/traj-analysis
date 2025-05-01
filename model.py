@@ -2424,6 +2424,7 @@ class  YoloMicroscopicDataProcessing:
         # Remover ids já contabilizados em outras classes
         df_analysis["idQmfj"] = df_analysis.apply(lambda row:[i for i in row["idQmfj"] if i not in row["idMcj"]],axis=1)
 
+       
         # Classes
         df_analysis["idQmfXYj"] = df_analysis.apply(lambda row:[self.MotorcycleAheadFirstAnalysisDocAlessandro(i,frame,row[self.traffic_lane_column],max_long_dist_overlap=max_long_dist_overlap) for i in row["idQmfj"]],axis=1)
         # Contagens
@@ -2544,7 +2545,11 @@ class  YoloMicroscopicDataProcessing:
 
         # Corrigir alinhamento
         for index,row in df_analysis.iterrows():
-            alignment_set = headway_sequence[headway_sequence[self.id_column]==row["id1"]]["alignment"].values[0]
+            alignment_set = headway_sequence[headway_sequence[self.id_column]==row["id1"]]
+
+            if alignment_set.empty:
+                alignment_set = headway_sequence[headway_sequence[self.id_column]==row["idj"][1]]
+            alignment_set = alignment_set["alignment"].values[0]
             headway_sequence.loc[headway_sequence[self.id_column].isin(row["idj"]),"alignment"] = alignment_set
             df_analysis.loc[index,"alignment"] = alignment_set
 

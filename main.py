@@ -11,14 +11,14 @@ if __name__=="__main__":
     
     # model = YoloMicroscopicDataProcessing()
     # model.ImportFromJSON(
-    #     "data/json/BM_x_PA_D2_0005.json",
+    #     "data/json/C_x_13M_SemMotobox_D4_0004.json",
     #     post_processing=model.PostProcessing1)
     # result = model.Hd4Analysis(model.green_open_time[0])
     
-    # print(result) # [result.columns[:12]]
+    # # print(result) # [result.columns[:12]]
 
-    # result = RunHd4Analysis("data/json/BM_x_PA_D2_0005.json")
-
+    # # result = RunHd4Analysis("data/json/C_x_13M_SemMotobox_D4_0004.json")
+    
     root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     output_folder = "data/hd4"
     run = Run()
