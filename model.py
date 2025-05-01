@@ -338,11 +338,11 @@ class  YoloMicroscopicDataProcessing:
         self.df = self.df[-self.df[self.vehicle_type_column].isin(["Bicicleta","Pedestre"])]
         
         # Remove veículos (ids) que só apresentam np.nan em self.traffic_lane_column
-        df_traffic_lane_agg = self.df.groupby(self.id_column).agg({self.traffic_lane_column:lambda values:values.isna().all()}).reset_index(drop=False)
-        df_traffic_lane_agg = df_traffic_lane_agg[-df_traffic_lane_agg[self.traffic_lane_column]]
-        self.df = self.df[self.df[self.id_column].isin(df_traffic_lane_agg[self.id_column].tolist())]
+        # df_traffic_lane_agg = self.df.groupby(self.id_column).agg({self.traffic_lane_column:lambda values:values.isna().all()}).reset_index(drop=False)
+        # df_traffic_lane_agg = df_traffic_lane_agg[-df_traffic_lane_agg[self.traffic_lane_column]]
+        # self.df = self.df[self.df[self.id_column].isin(df_traffic_lane_agg[self.id_column].tolist())]
 
-        # self.df = self.df.dropna(subset=self.traffic_lane_column)
+        self.df = self.df.dropna(subset=self.traffic_lane_column)
 
         self.df = self.df.reset_index(drop=True)
 
