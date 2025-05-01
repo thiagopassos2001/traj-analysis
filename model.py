@@ -3356,6 +3356,8 @@ class  YoloMicroscopicDataProcessing:
         section=None,
         start_frame=None,
         last_frame=None,
+        alignment_check=False,
+        max_longitudinal_distance_overlap=0.3,
         **kwargs
         ):
 
@@ -3375,7 +3377,6 @@ class  YoloMicroscopicDataProcessing:
         if "test" in kwargs:
             print("sdsdstest")
 
-        
         vehicle_id_list = self.df[self.df[self.frame_column].between(start_frame,last_frame)][self.id_column].unique().tolist()
         df = []
         for vehicle_id in vehicle_id_list:
@@ -3387,7 +3388,57 @@ class  YoloMicroscopicDataProcessing:
             )
             df.append(row)
         
-        df = pd.concat(df,ignore_index=True).sort_values(self.frame_column)
+        df = pd.concat(df,ignore_index=True)
+        # Filtra os limites para remover veículos que passaram na seção,
+        # Mas fora dos frames indicados
+        df = df[df[self.frame_column].between(start_frame,last_frame)].sort_values(self.frame_column)
+
+        if alignment_check:
+            count_alignment = 0
+            df_dict = {
+                self.id_column:[],
+                "alignment":[],
+                "queue_position":[]
+            }
+            for index,row in df.iterrows():
+                if not row[self.id_column] in df_dict[self.id_column]:
+                    count_pos = 1
+                    count_alignment = count_alignment + 1
+
+                    df_dict[self.id_column].append(row[self.id_column])
+                    df_dict["alignment"].append(count_alignment)
+                    df_dict["queue_position"].append(count_pos)
+
+                    side_offset_vehicle = 0.1 if row[self.vehicle_type_column] in ["Moto","Bicicleta","Pedestre"] else -0.1
+                    vehicle_behind = self.FirstVehicleBehind(
+                        id_vehicle=row[self.id_column],
+                        frame=row[self.frame_column],
+                        side_offset_vehicle=side_offset_vehicle,
+                        max_longitudinal_distance_overlap=max_longitudinal_distance_overlap
+                    )
+                    mask_vehicle_behind = df[self.id_column]==vehicle_behind[self.id_column].values[0]
+
+                    while (not vehicle_behind.empty) and mask_vehicle_behind.any() and (not vehicle_behind[self.id_column].values[0] in df_dict[self.id_column]):
+                        # Atualiza os dados do próximo veículo
+                        count_pos = count_pos + 1
+                        df_dict[self.id_column].append(vehicle_behind[self.id_column].values[0])
+                        df_dict["alignment"].append(count_alignment)
+                        df_dict["queue_position"].append(count_pos)
+                        # print(row[self.id_column],vehicle_behind[self.id_column].values[0],mask_vehicle_behind.any(),count_alignment)
+
+                        frame = df[mask_vehicle_behind][self.frame_column].values[0]
+                        side_offset_vehicle = 0.1 if vehicle_behind[self.vehicle_type_column].values[0] in ["Moto","Bicicleta","Pedestre"] else -0.1
+
+                        vehicle_behind = self.FirstVehicleBehind(
+                            id_vehicle=vehicle_behind[self.id_column].values[0],
+                            frame=frame,
+                            side_offset_vehicle=side_offset_vehicle,
+                            max_longitudinal_distance_overlap=max_longitudinal_distance_overlap
+                            )
+                        if not vehicle_behind.empty:
+                            mask_vehicle_behind = df[self.id_column]==vehicle_behind[self.id_column].values[0]
+
+            df = df.merge(pd.DataFrame.from_dict(df_dict),on=self.id_column,how="left").sort_values(by=["alignment","queue_position"])
 
         return df
 

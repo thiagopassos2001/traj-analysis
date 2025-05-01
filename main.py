@@ -13,9 +13,11 @@ if __name__=="__main__":
     model.ImportFromJSON(
         "data/json/C_x_13M_SemMotobox_D5_0003.json",
         post_processing=model.PostProcessing1)
-    result = model.GroupVechiclesCrossingSection()
+    result = model.GroupVechiclesCrossingSection(
+        start_frame=int(model.green_open_time[0]*model.fps),
+        alignment_check=True)
     
-    print(result)
+    print(result[["frame","id","vehicle_type","traffic_lane","alignment" ,"queue_position"]])
 
     # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     # output_folder = "data/hd4"
