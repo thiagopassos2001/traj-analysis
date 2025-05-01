@@ -1,10 +1,8 @@
  # Libs principais
 from model import *
 import pandas as pd
-
 # Controle de execução e pastas
 import os
-
 # Desativar alguns warnings
 import warnings
 warnings.filterwarnings('ignore')
@@ -12,8 +10,11 @@ warnings.filterwarnings('ignore')
 if __name__=="__main__":
     
     model = YoloMicroscopicDataProcessing()
-    model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D5_0003.json")
-    result = model.Hd4Analysis(model.green_open_time[0])
+    model.ImportFromJSON(
+        "data/json/C_x_13M_SemMotobox_D5_0003.json",
+        post_processing=model.PostProcessing1)
+    result = model.GroupVechiclesCrossingSection()
+    
     print(result)
 
     # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"

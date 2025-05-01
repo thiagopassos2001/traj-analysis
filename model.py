@@ -455,7 +455,6 @@ class  YoloMicroscopicDataProcessing:
 
             if post_processing!=None:
                 post_processing()
-            print("Trajetórias importadas com sucesso!")
         except:
             self.df = pd.DataFrame()
             print("Trajetórias ainda não processadas!")
@@ -871,7 +870,7 @@ class  YoloMicroscopicDataProcessing:
         ignore_vehicle_types_list_order:list=None,
         ignore_vehicle_types_list_distance:list=None,
         distance_between_vehicles_lim:float=7,
-        ignore_ext_interference=True
+        ignore_ext_interference=True,
         ):
         '''
         Retorna os veículos em fila por faixa
@@ -882,7 +881,7 @@ class  YoloMicroscopicDataProcessing:
             ignore_vehicle_types_list_order = self.vehicle_category_list["two_wheel"] + self.vehicle_category_list["walk"]
         if ignore_vehicle_types_list_distance==None:
             ignore_vehicle_types_list_distance = self.vehicle_category_list["two_wheel"] + self.vehicle_category_list["walk"]
-
+        
         # Dados válidos
         df_analysed = self.df[self.df[self.frame_column]==frame]
         df_analysed = df_analysed[-df_analysed[self.vehicle_type_column].isin(ignore_vehicle_types_list_order)]
@@ -3281,6 +3280,116 @@ class  YoloMicroscopicDataProcessing:
         # Retorna a lista final
         id_list = sorted(df_analysis[self.id_column].unique().tolist())
         return id_list
+    
+    def VechicleCrossingSection(
+            self,
+            vehicle_id,
+            section,
+            x_column=None,
+            y_column=None,
+            ):
+        """
+        Calcula em que momento o veículo cruza a seção
+        Retorna a linha se cruzar e um dataframe vazio se não cruzar
+        """
+
+        # Ajusta as colunas padrão
+        if x_column==None:
+            x_column = self.x_head_column
+        if y_column==None:
+            y_column = self.y_centroid_column
+
+        df_analysis = self.df[self.df[self.id_column]==vehicle_id].sort_values(self.frame_column)
+
+        # Linha de trajetória do veículo a partir do frame
+        df_analysis["coords"] = df_analysis.apply(lambda x:(x[x_column],x[y_column]),axis=1)
+        df_analysis["geometry"] = df_analysis["coords"].apply(shapely.Point)
+        # Cria o geodataframe
+        df_analysis = gpd.GeoDataFrame(df_analysis,geometry="geometry",crs="EPSG:31984")
+        
+        # Geometria da linha
+        df_analysis_line = shapely.LineString(df_analysis["coords"].tolist())
+        
+        # Verifica se a linha de trajetória cruza a linha de referencia
+        if not df_analysis_line.intersects(section):
+            return pd.DataFrame()
+        
+        # Ponto de interseção
+        intersection_point = df_analysis_line.intersection(section)
+        # Distância dos pontos de trajetoria ao ponto de interseção
+        df_analysis["distance_intersection"] = df_analysis["geometry"].apply(lambda x:shapely.distance(x,intersection_point))
+        df_analysis = df_analysis.sort_values("distance_intersection")
+
+        row = pd.DataFrame(df_analysis.iloc[:1].drop(columns=["geometry","distance_intersection","coords"]))
+
+        return row
+    
+    def VechicleCrossingFromEndMWA(
+            self,
+            vehicle_id,
+            x_column=None,
+            y_column=None,
+            ):
+        """
+        Calcula em que momento o veículo cruza a seção
+        Retorna a linha se cruzar e um dataframe vazio se não cruzar
+        """
+
+        # Ajusta as colunas padrão
+        if x_column==None:
+            x_column = self.x_head_column
+        if y_column==None:
+            y_column = self.y_centroid_column
+
+        s = shapely.LineString([[self.motobox_end_section,self.video_heigth],[self.motobox_end_section,0]])
+        row = self.VechicleCrossingSection(
+            vehicle_id=vehicle_id,
+            section=s,
+            x_column=x_column,
+            y_column=y_column
+        )
+
+        return row
+    
+    def GroupVechiclesCrossingSection(
+        self,
+        section=None,
+        start_frame=None,
+        last_frame=None,
+        **kwargs
+        ):
+
+        if section==None:
+            section = shapely.LineString([[self.motobox_end_section,self.video_heigth],[self.motobox_end_section,0]])
+        if start_frame==None:
+            start_frame = 0
+        if last_frame==None:
+            last_frame = self.df[self.frame_column].max()
+        
+        x_column = None
+        y_column = None
+        if "x_column" in kwargs:
+            x_column = kwargs["x_column"]
+        if "y_column" in kwargs:
+            y_column = kwargs["y_column"]
+        if "test" in kwargs:
+            print("sdsdstest")
+
+        
+        vehicle_id_list = self.df[self.df[self.frame_column].between(start_frame,last_frame)][self.id_column].unique().tolist()
+        df = []
+        for vehicle_id in vehicle_id_list:
+            row = self.VechicleCrossingSection(
+                vehicle_id=vehicle_id,
+                section=section,
+                x_column=x_column,
+                y_column=y_column
+            )
+            df.append(row)
+        
+        df = pd.concat(df,ignore_index=True).sort_values(self.frame_column)
+
+        return df
 
 # Fluxo de execução para trabalhar com múltiplos arquivos
 # Copiar o padrão de alterar
