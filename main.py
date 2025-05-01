@@ -11,12 +11,13 @@ if __name__=="__main__":
     
     # model = YoloMicroscopicDataProcessing()
     # model.ImportFromJSON(
-    #     "data/json/BM_x_PA_D2_0001.json",
+    #     "data/json/BM_x_PA_D2_0005.json",
     #     post_processing=model.PostProcessing1)
-    # result,a = model.Hd4Analysis(model.green_open_time[1])
+    # result = model.Hd4Analysis(model.green_open_time[0])
     
     # print(result) # [result.columns[:12]]
-    # print(a)
+
+    # result = RunHd4Analysis("data/json/BM_x_PA_D2_0005.json")
 
     root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     output_folder = "data/hd4"
@@ -34,7 +35,15 @@ if __name__=="__main__":
         df_ = pd.read_csv(os.path.join(output_folder,f))
         df.append(df_)
     df = pd.concat(df,ignore_index=True)
-    df.to_excel("data/summary/hd4_30_04_25.xlsx",index=False)
+    df.to_excel("data/summary/hd4_01_05_25.xlsx",index=False)
+
+    df = []
+    all_files = os.listdir("data/hd_check")
+    for f in all_files:
+        df_ = pd.read_csv(os.path.join(output_folder,f))
+        df.append(df_)
+    df = pd.concat(df,ignore_index=True)
+    df.to_excel("data/summary/hd_check_01_05_25.xlsx",index=False)
 
     output_folder = "data/hd1"
     run = Run()
@@ -51,4 +60,4 @@ if __name__=="__main__":
         df_ = pd.read_csv(os.path.join(output_folder,f))
         df.append(df_)
     df = pd.concat(df,ignore_index=True)
-    df.to_excel("data/summary/hd1_30_04_25.xlsx",index=False)
+    df.to_excel("data/summary/hd1_01_05_25.xlsx",index=False)

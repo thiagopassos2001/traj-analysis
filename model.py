@@ -2362,7 +2362,7 @@ class  YoloMicroscopicDataProcessing:
             df_analysis.insert(0,self.instant_column,instant)
             df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
             df_analysis.insert(0,self.frame_column,frame)
-            return df_analysis
+            return df_analysis,pd.DataFrame()
 
         # Último id
         df_analysis["id4"] = df_analysis["idj"].str[3]
@@ -2390,7 +2390,7 @@ class  YoloMicroscopicDataProcessing:
             df_analysis.insert(0,self.instant_column,instant)
             df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
             df_analysis.insert(0,self.frame_column,frame)
-            return df_analysis
+            return df_analysis,pd.DataFrame()
 
         # Verifica se o primeiro veículo está a frente da faixa de retenção até "max_distance_invading_section"
         # Report
@@ -2411,7 +2411,7 @@ class  YoloMicroscopicDataProcessing:
             df_analysis.insert(0,self.instant_column,instant)
             df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
             df_analysis.insert(0,self.frame_column,frame)
-            return df_analysis
+            return df_analysis,pd.DataFrame()
 
         # Coluna para armasenar as motos armazenadas por ciclo
         df_analysis["idMcj"] = [[-1]]*len(df_analysis)
@@ -2681,8 +2681,8 @@ class  YoloMicroscopicDataProcessing:
 
         # Verifica se a moto veículo está além da seção do motobox mais folga
         # Posição da frente da moto no frame
-        motorcycle_x_head = self.df[(self.df[self.id_column]==id) & (self.df[self.frame_column]==frame)][self.x_head_column].values[0]
-        if motorcycle_x_head>self.motobox_end_section+max_dist_invading_section:
+        motorcycle_x_tail = self.df[(self.df[self.id_column]==id) & (self.df[self.frame_column]==frame)][self.x_tail_column].values[0]
+        if motorcycle_x_tail>self.motobox_end_section:
             return "0"
 
         # Se até "dbmv1", retorna "1"
@@ -3587,13 +3587,13 @@ def RunHd4Analysis(file_path):
     result = []
     hd = []
     for t in model.green_open_time:
-        # try:
-        result_,hd_ = model.Hd4Analysis(t)
-        if not result_.empty:
-            result.append(result_)
-            hd.append(hd_)
-        # except Exception as e:
-        #     print(f"Erro {e} no {os.path.basename(file_path)} em {int(t//60)}:{int(t%60)}")
+        try:
+            result_,hd_ = model.Hd4Analysis(t)
+            if not result_.empty:
+                result.append(result_)
+                hd.append(hd_)
+        except Exception as e:
+            print(f"Erro {e} no {os.path.basename(file_path)} em {int(t//60)}:{int(t%60)}")
 
     result = pd.concat(result,ignore_index=True)
     hd = pd.concat(hd,ignore_index=True)
