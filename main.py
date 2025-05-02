@@ -21,12 +21,12 @@ if __name__=="__main__":
     
     root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
     output_folder = "data/hd4"
-    run = Run()
-    run.WorkflowPattern(
-        root_path=root_path,
-        output_folder=output_folder,
-        prefix="Hd4_",
-        func=RunHd4Analysis)
+    # run = Run()
+    # run.WorkflowPattern(
+    #     root_path=root_path,
+    #     output_folder=output_folder,
+    #     prefix="Hd4_",
+    #     func=RunHd4Analysis)
     
     # Concatenar resumo
     df = []
@@ -40,7 +40,7 @@ if __name__=="__main__":
     df = []
     all_files = os.listdir("data/hd_check")
     for f in all_files:
-        df_ = pd.read_csv(os.path.join(output_folder,f))
+        df_ = pd.read_csv(os.path.join("data/hd_check",f))
         df.append(df_)
     df = pd.concat(df,ignore_index=True)
     df.to_excel("data/summary/hd_check_01_05_25.xlsx",index=False)
