@@ -2112,8 +2112,9 @@ class  YoloMicroscopicDataProcessing:
             side_offset_vehicle=0.15,
             dist_between_motorcycle_ahead:float=1,      # dbma
             dist_between_motorcycle_behind:float=2.5,   # dbmb
-            max_long_dist_overlap=0.3,
+            max_long_dist_overlap=0.5,
             max_lat_dist_virtual_lane=0.7,
+            max_distance_invading_section=1,
             frame_convert_mode="fps",
             fps=None,
             ):
@@ -2149,9 +2150,10 @@ class  YoloMicroscopicDataProcessing:
         # Se não houver veículos computáveis, retorna None
         if df_analysis.empty:
             return df_analysis
-
+        
         # Puxa a posição de referência da frente do veículo, para alguns cálculos esécificos
         df_analysis[self.x_head_column] = df_analysis["id1"].apply(lambda x:self.df.query(f"{self.id_column} == {x} & {self.frame_column} == {frame}")[self.x_head_column].values[0])
+        df_analysis["report"] = df_analysis.apply(lambda row:f"@{row['id1']} avançou além de {max_distance_invading_section} m no motobox" if row[self.x_head_column]>self.motobox_start_section+max_distance_invading_section else np.nan,axis=1)
 
         # Tipo de veículo
         df_analysis[self.vehicle_type_column] = df_analysis["id1"].apply(lambda x:self.FindVehicleType(x) if x!=None else "")
@@ -2164,7 +2166,7 @@ class  YoloMicroscopicDataProcessing:
         # Quantidade de veículos a frente por categorias
         # IDs
         df_analysis["idQmfj"] = df_analysis["id1"].apply(lambda x:self.VehicleAhead(x,frame,side_offset_vehicle=side_offset_vehicle,max_longitudinal_distance_overlap=max_long_dist_overlap)["id"].tolist())
-        df_analysis["idQmfj"] = df_analysis.apply(lambda row:self.FilterVehicleOverlay(id_list=row["idQmfj"],frame=frame,max_centroid_overlap_dist=0.25),axis=1)
+        df_analysis["idQmfj"] = df_analysis.apply(lambda row:self.FilterVehicleOverlay(id_list=row["idQmfj"],frame=frame,max_centroid_overlap_dist=0.45),axis=1)
         df_analysis["idQmfXYj"] = df_analysis.apply(lambda row:[self.MotorcycleAheadFirstAnalysisDocAlessandro(i,frame,row[self.traffic_lane_column],max_long_dist_overlap=max_long_dist_overlap) for i in row["idQmfj"]],axis=1)
         # Contagens
         # Total
@@ -2210,7 +2212,7 @@ class  YoloMicroscopicDataProcessing:
             overlap_lon=-dbma,
             ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"]).query(
                 f"{self.x_tail_column} <= {row[self.x_head_column]}+{dbma} & {self.x_head_column} >= {row[self.x_head_column]}-{dbmb}"
-            )[self.id_column].tolist(),axis=1)
+            )[self.id_column].unique().tolist(),axis=1)
         
         # Remover ids já contabilizados em outras classes
         df_analysis[f"idQmcpj"] = df_analysis.apply(lambda row:[i for i in row[f"idQmcpj"] if i not in row["idMcj"]],axis=1)
@@ -2285,7 +2287,7 @@ class  YoloMicroscopicDataProcessing:
     def Hd4Analysis(
             self,
             instant,
-            max_long_dist_overlap=0.3,
+            max_long_dist_overlap=0.5,
             side_offset_vehicle=0.15,
             dist_between_motorcycle_ahead:float=1,      # dbma
             dist_between_motorcycle_behind:float=2.5,   # dbmb
@@ -2420,7 +2422,7 @@ class  YoloMicroscopicDataProcessing:
         # -----------------------------------------------------------------------------------------------------
         # IDs
         df_analysis["idQmfj"] = df_analysis["id1"].apply(lambda row:self.VehicleAhead(row,frame,side_offset_vehicle=side_offset_vehicle,max_longitudinal_distance_overlap=max_long_dist_overlap)[self.id_column].tolist())
-        df_analysis["idQmfj"] = df_analysis.apply(lambda row:self.FilterVehicleOverlay(id_list=row["idQmfj"],frame=frame,max_centroid_overlap_dist=0.25),axis=1)
+        df_analysis["idQmfj"] = df_analysis.apply(lambda row:self.FilterVehicleOverlay(id_list=row["idQmfj"],frame=frame,max_centroid_overlap_dist=0.45),axis=1)
         # Remover ids já contabilizados em outras classes
         df_analysis["idQmfj"] = df_analysis.apply(lambda row:[i for i in row["idQmfj"] if i not in row["idMcj"]],axis=1)
 
@@ -2515,7 +2517,7 @@ class  YoloMicroscopicDataProcessing:
                 max_lat_dist=max_lat_dist_virtual_lane,
                 ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"]).query(
                     f"{self.x_tail_column} <= {row[self.x_head_column][pos-1]}+{dbma} & {self.x_head_column} >= {row[self.x_head_column][pos-1]}-{dbmb}"
-                )[self.id_column].tolist(),axis=1)
+                )[self.id_column].unique().tolist(),axis=1)
             
             # Remove os ids já contabilizados
             df_analysis[f"idQmcp{pos}j"] = df_analysis.apply(lambda row:[i for i in row[f"idQmcp{pos}j"] if i not in row["idMcj"]],axis=1)
