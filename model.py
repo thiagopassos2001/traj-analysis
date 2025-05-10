@@ -2029,7 +2029,7 @@ class  YoloMicroscopicDataProcessing:
 
         query_expr = f"{self.id_column} == {vehicle_id} & {self.frame_column} >= {frame}"
         df_traj = self.df.query(query_expr).sort_values(self.frame_column)
-        
+
         # Verifica se o frame passado existe na trajetória do veículo (deve ser a primeira)
         # Se não for, pode existir trajetória após o frame coletado, mas o headway tem outra
         # interpretação
@@ -3438,6 +3438,7 @@ class  YoloMicroscopicDataProcessing:
         vehicle_id_list = self.df[self.df[self.frame_column].between(start_frame,last_frame)][self.id_column].unique().tolist()
         df = []
         for vehicle_id in vehicle_id_list:
+            
             row = self.VechicleCrossingSection(
                 vehicle_id=vehicle_id,
                 section=section,
