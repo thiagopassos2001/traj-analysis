@@ -3614,6 +3614,22 @@ class  YoloMicroscopicDataProcessing:
                 
                 df_two_wheel.append(df_two_wheel_row[keep_cols])
         
+        motorcycle_first_vehicle = df_four_wheel[df_four_wheel["queue_position"]==1]
+        for _,row in motorcycle_first_vehicle.iterrows():
+            all_motorcycle_ahead = self.FirstVehicleAhead(
+                row[self.id_column],
+                frame=start_frame+int((row[self.frame_column]-start_frame)*0.5),
+            )
+
+            if not all_motorcycle_ahead.empty:
+                row_motorcycle = self.VechicleCrossingSection(
+                        vehicle_id=all_motorcycle_ahead[self.id_column].values[0],
+                        section=section,
+                    )
+                row_motorcycle["alignment"] = row["alignment"]
+                row_motorcycle["queue_position"] = row["queue_position"] + -1 # dummy
+                df_two_wheel.append(row_motorcycle[keep_cols])
+
         all_vehicles = pd.concat([df_four_wheel]+df_two_wheel,ignore_index=True)
 
         # Ajustes e cálculo do headway
