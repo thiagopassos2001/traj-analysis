@@ -1141,7 +1141,8 @@ class  YoloMicroscopicDataProcessing:
         max_longitudinal_distance_overlap:float=0.30,
         ignore_vehicle_types_list:list=[],
         project_verification:bool=False,
-        report_null_value:bool=False):
+        report_null_value:bool=False,
+        max_dist_between_vehicles=None):
 
         ahead_vehicle_group = self.VehicleAhead(
             id_vehicle=id_vehicle,
@@ -1152,6 +1153,8 @@ class  YoloMicroscopicDataProcessing:
              project_verification=project_verification
         )
 
+        if max_dist_between_vehicles!=None:
+            ahead_vehicle_group = ahead_vehicle_group[ahead_vehicle_group['distance_between_vehicles']<=max_dist_between_vehicles]
         pos_ahead_vehicle = ahead_vehicle_group['distance_between_vehicles'].min()
         ahead_vehicle = ahead_vehicle_group[ahead_vehicle_group['distance_between_vehicles']==pos_ahead_vehicle]
 
@@ -2275,7 +2278,8 @@ class  YoloMicroscopicDataProcessing:
             id_vehicle_follower,
             frame,
             max_long_dist_overlap=0.3,
-            side_offset_vehicle=0.15):
+            side_offset_vehicle=0.15,
+            double_check=False):
         """
         Retorna os ids das motocicletas entre os veículos líder e seguidor no frame indicado
         Ignora outros veículos não moto entre os veículos líder e seguidor
@@ -2318,6 +2322,24 @@ class  YoloMicroscopicDataProcessing:
 
         # Restringe a quantidade de motocicletas, baseado na parte da frente dela
         motorcycle_between = motorcycle_between[motorcycle_between[self.x_head_column]<=lim_leader]
+
+        if double_check and not motorcycle_between.empty:
+            double_check_motorcycle_between = self.VehicleBehind(
+                id_vehicle_leader,
+                frame,
+                side_offset_vehicle=side_offset_vehicle,
+                max_longitudinal_distance_overlap=max_long_dist_overlap,
+                ignore_vehicle_types_list=self.vehicle_category_list['four_wheel']+self.vehicle_category_list['walk'])
+
+            # Restringe os veículos ao para-choque traseiro + sobreposição máxima
+            # Próximo ao líder, o limite é o para-choque traseiro + sobreposição longitudinal
+            lim_follower = df_analysis[df_analysis[self.id_column]==id_vehicle_follower][self.x_head_column].values[0]
+            lim_follower = lim_follower - max_long_dist_overlap
+
+            # Restringe a quantidade de motocicletas, baseado na parte da frente dela
+            double_check_motorcycle_between = double_check_motorcycle_between[double_check_motorcycle_between[self.x_tail_column]>=lim_follower]
+
+            motorcycle_between = motorcycle_between[motorcycle_between[self.id_column].isin(double_check_motorcycle_between[self.id_column].tolist())]
 
         return motorcycle_between
 
@@ -3348,7 +3370,7 @@ class  YoloMicroscopicDataProcessing:
             ):
         """
         Calcula em que momento o veículo cruza a seção
-        Retorna a linha se cruzar e um dataframe vazio se não cruzar
+        Retorna a linha do dataframe se cruzar e um dataframe vazio se não cruzar
         """
 
         # Ajusta as colunas padrão
@@ -3414,8 +3436,9 @@ class  YoloMicroscopicDataProcessing:
         section=None,
         start_frame=None,
         last_frame=None,
-        alignment_check=False,
+        alignment_check=True,
         max_longitudinal_distance_overlap=0.3,
+        ignore_vehicle_types_list=[],
         **kwargs
         ):
 
@@ -3435,7 +3458,8 @@ class  YoloMicroscopicDataProcessing:
         if "test" in kwargs:
             print("sdsdstest")
 
-        vehicle_id_list = self.df[self.df[self.frame_column].between(start_frame,last_frame)][self.id_column].unique().tolist()
+        vehicle_id_list = self.df[(self.df[self.frame_column].between(start_frame,last_frame)) & (-self.df[self.vehicle_type_column].isin(ignore_vehicle_types_list))]
+        vehicle_id_list = vehicle_id_list[self.id_column].unique().tolist()
         df = []
         for vehicle_id in vehicle_id_list:
             
@@ -3473,7 +3497,8 @@ class  YoloMicroscopicDataProcessing:
                         id_vehicle=row[self.id_column],
                         frame=row[self.frame_column],
                         side_offset_vehicle=side_offset_vehicle,
-                        max_longitudinal_distance_overlap=max_longitudinal_distance_overlap
+                        max_longitudinal_distance_overlap=max_longitudinal_distance_overlap,
+                        ignore_vehicle_types_list=ignore_vehicle_types_list
                     )
                     if not vehicle_behind.empty:
                         mask_vehicle_behind = df[self.id_column]==vehicle_behind[self.id_column].values[0]
@@ -3493,14 +3518,128 @@ class  YoloMicroscopicDataProcessing:
                             id_vehicle=vehicle_behind[self.id_column].values[0],
                             frame=frame,
                             side_offset_vehicle=side_offset_vehicle,
-                            max_longitudinal_distance_overlap=max_longitudinal_distance_overlap
+                            max_longitudinal_distance_overlap=max_longitudinal_distance_overlap,
+                            ignore_vehicle_types_list=ignore_vehicle_types_list
                             )
                         if not vehicle_behind.empty:
                             mask_vehicle_behind = df[self.id_column]==vehicle_behind[self.id_column].values[0]
 
             df = df.merge(pd.DataFrame.from_dict(df_dict),on=self.id_column,how="left").sort_values(by=["alignment","queue_position"])
+            df = df.reset_index()
+
+            df = df[[
+                self.frame_column,
+                self.id_column,
+                self.instant_column,
+                self.vehicle_type_column,
+                self.traffic_lane_column,
+                "alignment",
+                "queue_position"
+                ]]
 
         return df
+
+    def GVCS_Type1(
+        self,
+        section=None,
+        start_frame=None,
+        last_frame=None,
+        max_dist_between_vehicles=1.5,
+        max_longitudinal_distance_overlap=0.3,
+        ignore_vehicle_types_list=[]):
+        """
+        Do a something
+        """
+        if section==None:
+            section = shapely.LineString([[self.motobox_end_section,self.video_heigth],[self.motobox_end_section,0]])
+        if start_frame==None:
+            start_frame = 0
+        if last_frame==None:
+            last_frame = self.df[self.frame_column].max()
+
+        df_four_wheel = self.GroupVechiclesCrossingSection(
+            section=section,
+            start_frame=start_frame,
+            last_frame=last_frame,
+            alignment_check=True,
+            ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"])
+        keep_cols = df_four_wheel.columns
+        
+        df_two_wheel = []
+
+        for _,row in df_four_wheel.iterrows():
+            first_vehicle_behind = self.FirstVehicleBehind(
+                row[self.id_column],
+                frame=row[self.frame_column],
+                side_offset_vehicle=0,
+                ignore_vehicle_types_list=ignore_vehicle_types_list
+            )
+
+            motorcycle_between_checked = []
+            if not first_vehicle_behind.empty:
+                motorcycle_between = self.MotorcycleBetweenVehicleLF(
+                    id_vehicle_leader=row[self.id_column],
+                    id_vehicle_follower=first_vehicle_behind[self.id_column].values[0],
+                    frame=row[self.frame_column],
+                )
+
+                if not motorcycle_between.empty:
+                    for _,row_motorcycle in motorcycle_between.iterrows():
+                        check_restriction = self.FirstVehicleAhead(
+                            row_motorcycle[self.id_column],
+                            frame=row_motorcycle[self.frame_column],
+                            side_offset_vehicle=0)
+
+                        if not check_restriction.empty:
+                            if check_restriction[self.id_column].values[0]==row[self.id_column]:
+                                motorcycle_between_checked.append(row_motorcycle[self.id_column])
+                            elif check_restriction["distance_between_vehicles"].values[0]<=max_dist_between_vehicles:
+                                motorcycle_between_checked.append(row_motorcycle[self.id_column])
+                            else:
+                                pass
+            
+            df_two_wheel_row = pd.DataFrame()
+            if len(motorcycle_between_checked)>0:
+                df_two_wheel_row = []
+                for vehicle_id in motorcycle_between_checked:
+                    row_motorcycle = self.VechicleCrossingSection(
+                        vehicle_id=vehicle_id,
+                        section=section,
+                    )
+                    df_two_wheel_row.append(row_motorcycle)
+                
+                df_two_wheel_row = pd.concat(df_two_wheel_row,ignore_index=True)
+                df_two_wheel_row["alignment"] = row["alignment"]
+                df_two_wheel_row["queue_position"] = row["queue_position"] + 1 # dummy
+                
+                df_two_wheel.append(df_two_wheel_row[keep_cols])
+        
+        all_vehicles = pd.concat([df_four_wheel]+df_two_wheel,ignore_index=True)
+
+        # Ajustes e cálculo do headway
+        all_vehicles = all_vehicles.sort_values(by=["alignment",self.frame_column]).reset_index()
+        
+        for index,row in all_vehicles.iterrows():
+            if index==0:
+                all_vehicles.loc[index,"queue_position"] = 1
+            elif row["alignment"]!=all_vehicles["alignment"].values[index-1]:
+                all_vehicles.loc[index,"queue_position"] = 1
+            else:
+                all_vehicles.loc[index,"queue_position"] = all_vehicles["queue_position"].values[index-1] + 1
+        
+        start_instant = int(start_frame/self.fps)
+        hs = []
+        alignment = all_vehicles["alignment"].unique().tolist()
+        for al in alignment:
+            value = all_vehicles[all_vehicles['alignment']==al]
+            hd = [float(start_instant)]+value[self.instant_column].tolist()
+            hd = [j-i for i,j in zip(hd[:-1],hd[1:])]
+            value["hd"] = hd
+            hs.append(value)
+        
+        hs = pd.concat(hs,ignore_index=True)
+
+        return hs
 
 # Fluxo de execução para trabalhar com múltiplos arquivos
 # Copiar o padrão de alterar
