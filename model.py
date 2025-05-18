@@ -649,12 +649,12 @@ class  YoloMicroscopicDataProcessing:
         id_vehicle_list = self.df[self.id_column].unique().tolist()
         for id_vehicle in id_vehicle_list:
             # Dados do veiculo
-            df_analysed = self.df[self.df[self.id_column]==id_vehicle].sort_values(self.instant_column)
+            df_analyzed = self.df[self.df[self.id_column]==id_vehicle].sort_values(self.instant_column)
 
             # Posição e tempo organizados temporalmente
-            x = df_analysed[self.x_centroid_column]
-            y = df_analysed[self.y_centroid_column]
-            t = df_analysed[self.instant_column]
+            x = df_analyzed[self.x_centroid_column]
+            y = df_analyzed[self.y_centroid_column]
+            t = df_analyzed[self.instant_column]
 
             # Calculo da velocidade
             x_instant_speed = np.gradient(x,t,edge_order=2)
@@ -669,16 +669,16 @@ class  YoloMicroscopicDataProcessing:
             y_instant_acc = np.gradient(y_instant_speed,t,edge_order=2)
 
             # Associação com o veículo
-            df_analysed[self.x_instant_speed_column] = x_instant_speed
-            df_analysed[self.y_instant_speed_column] = y_instant_speed
-            df_analysed[self.x_instant_acc_column] = x_instant_acc
-            df_analysed[self.y_instant_acc_column] = y_instant_acc
+            df_analyzed[self.x_instant_speed_column] = x_instant_speed
+            df_analyzed[self.y_instant_speed_column] = y_instant_speed
+            df_analyzed[self.x_instant_acc_column] = x_instant_acc
+            df_analyzed[self.y_instant_acc_column] = y_instant_acc
 
             # Cálculo do módulo
-            df_analysed[self.instant_speed_column] = ((df_analysed[self.x_instant_speed_column]**2) + (df_analysed[self.y_instant_speed_column]**2))**0.5
-            df_analysed[self.instant_acc_column] = ((df_analysed[self.x_instant_acc_column]**2) + (df_analysed[self.y_instant_acc_column]**2))**0.5
+            df_analyzed[self.instant_speed_column] = ((df_analyzed[self.x_instant_speed_column]**2) + (df_analyzed[self.y_instant_speed_column]**2))**0.5
+            df_analyzed[self.instant_acc_column] = ((df_analyzed[self.x_instant_acc_column]**2) + (df_analyzed[self.y_instant_acc_column]**2))**0.5
 
-            df_speed_acc = pd.concat([df_speed_acc,df_analysed[[
+            df_speed_acc = pd.concat([df_speed_acc,df_analyzed[[
                 self.global_id_column,
                 self.x_instant_speed_column,self.y_instant_speed_column,self.instant_speed_column,
                 self.x_instant_acc_column,self.y_instant_acc_column,self.instant_acc_column
@@ -706,19 +706,19 @@ class  YoloMicroscopicDataProcessing:
         id_vehicle_list = self.df[self.id_column].unique().tolist()
         for id_vehicle in id_vehicle_list:
             # Dados do veiculo
-            df_analysed = self.df[self.df[self.id_column]==id_vehicle].sort_values(self.instant_column)
+            df_analyzed = self.df[self.df[self.id_column]==id_vehicle].sort_values(self.instant_column)
             # Filtro para garantir que somente os frames certos sejam considerados
-            df_analysed = df_analysed[df_analysed[self.frame_column].isin(frame_range_list)]
+            df_analyzed = df_analyzed[df_analyzed[self.frame_column].isin(frame_range_list)]
 
             # Instante de tempo
-            t = df_analysed[self.instant_column]
+            t = df_analyzed[self.instant_column]
 
             # Suavização do Ponto 1
-            x1 = gaussian_filter1d(df_analysed[self.p1_x_bb_column],sigma=sigma)
-            y1 = gaussian_filter1d(df_analysed[self.p1_y_bb_column],sigma=sigma)
+            x1 = gaussian_filter1d(df_analyzed[self.p1_x_bb_column],sigma=sigma)
+            y1 = gaussian_filter1d(df_analyzed[self.p1_y_bb_column],sigma=sigma)
             # Suavização do Ponto 2
-            x2 = gaussian_filter1d(df_analysed[self.p2_x_bb_column],sigma=sigma)
-            y2 = gaussian_filter1d(df_analysed[self.p2_y_bb_column],sigma=sigma)
+            x2 = gaussian_filter1d(df_analyzed[self.p2_x_bb_column],sigma=sigma)
+            y2 = gaussian_filter1d(df_analyzed[self.p2_y_bb_column],sigma=sigma)
 
             # Recálcula de valores de posição
             # Centroide
@@ -748,27 +748,27 @@ class  YoloMicroscopicDataProcessing:
 
             # Associação com o veículo das variáveis atualizadas
             # Posição
-            df_analysed[self.y_centroid_column] = yc
-            df_analysed[self.x_centroid_column] = xc
-            df_analysed[self.x_head_column] = head
-            df_analysed[self.x_tail_column] = tail
-            df_analysed[self.p1_x_bb_column] = x1
-            df_analysed[self.p1_y_bb_column] = y1
-            df_analysed[self.p2_x_bb_column] = x2
-            df_analysed[self.p2_y_bb_column] = y2
-            df_analysed[self.vehicle_length_column] = length
-            df_analysed[self.vehicle_width_column] = width
+            df_analyzed[self.y_centroid_column] = yc
+            df_analyzed[self.x_centroid_column] = xc
+            df_analyzed[self.x_head_column] = head
+            df_analyzed[self.x_tail_column] = tail
+            df_analyzed[self.p1_x_bb_column] = x1
+            df_analyzed[self.p1_y_bb_column] = y1
+            df_analyzed[self.p2_x_bb_column] = x2
+            df_analyzed[self.p2_y_bb_column] = y2
+            df_analyzed[self.vehicle_length_column] = length
+            df_analyzed[self.vehicle_width_column] = width
             # Velocidade
-            df_analysed[self.x_instant_speed_column] = x_instant_speed
-            df_analysed[self.y_instant_speed_column] = y_instant_speed
-            df_analysed[self.instant_speed_column] = ((df_analysed[self.x_instant_speed_column]**2) + (df_analysed[self.y_instant_speed_column]**2))**0.5
+            df_analyzed[self.x_instant_speed_column] = x_instant_speed
+            df_analyzed[self.y_instant_speed_column] = y_instant_speed
+            df_analyzed[self.instant_speed_column] = ((df_analyzed[self.x_instant_speed_column]**2) + (df_analyzed[self.y_instant_speed_column]**2))**0.5
             # Aceleração
-            df_analysed[self.x_instant_acc_column] = x_instant_acc
-            df_analysed[self.y_instant_acc_column] = y_instant_acc
-            df_analysed[self.instant_acc_column] = ((df_analysed[self.x_instant_acc_column]**2) + (df_analysed[self.y_instant_acc_column]**2))**0.5
+            df_analyzed[self.x_instant_acc_column] = x_instant_acc
+            df_analyzed[self.y_instant_acc_column] = y_instant_acc
+            df_analyzed[self.instant_acc_column] = ((df_analyzed[self.x_instant_acc_column]**2) + (df_analyzed[self.y_instant_acc_column]**2))**0.5
 
             # Mesclar coms os outros id
-            df_smooth = pd.concat([df_smooth,df_analysed[cols_keep]],ignore_index=True)
+            df_smooth = pd.concat([df_smooth,df_analyzed[cols_keep]],ignore_index=True)
 
         df_smooth = df_smooth.sort_values([self.frame_column,self.traffic_lane_column,self.x_centroid_column])
         df_smooth = df_smooth.reset_index(drop=True)
@@ -794,19 +794,19 @@ class  YoloMicroscopicDataProcessing:
         id_vehicle_list = self.df[self.id_column].unique().tolist()
         for id_vehicle in id_vehicle_list:
             # Dados do veiculo
-            df_analysed = self.df[self.df[self.id_column]==id_vehicle].sort_values(self.instant_column)
+            df_analyzed = self.df[self.df[self.id_column]==id_vehicle].sort_values(self.instant_column)
             # Filtro para garantir que somente os frames certos sejam considerados
-            df_analysed = df_analysed[df_analysed[self.frame_column].isin(frame_range_list)]
+            df_analyzed = df_analyzed[df_analyzed[self.frame_column].isin(frame_range_list)]
 
             # Instante de tempo
-            t = df_analysed[self.instant_column]
+            t = df_analyzed[self.instant_column]
 
             # Suavização do Ponto 1
-            x1 = savgol_filter(df_analysed[self.p1_x_bb_column],window_length=window_length,polyorder=polyorder)
-            y1 = savgol_filter(df_analysed[self.p1_y_bb_column],window_length=window_length,polyorder=polyorder)
+            x1 = savgol_filter(df_analyzed[self.p1_x_bb_column],window_length=window_length,polyorder=polyorder)
+            y1 = savgol_filter(df_analyzed[self.p1_y_bb_column],window_length=window_length,polyorder=polyorder)
             # Suavização do Ponto 2
-            x2 = savgol_filter(df_analysed[self.p2_x_bb_column],window_length=window_length,polyorder=polyorder)
-            y2 = savgol_filter(df_analysed[self.p2_y_bb_column],window_length=window_length,polyorder=polyorder)
+            x2 = savgol_filter(df_analyzed[self.p2_x_bb_column],window_length=window_length,polyorder=polyorder)
+            y2 = savgol_filter(df_analyzed[self.p2_y_bb_column],window_length=window_length,polyorder=polyorder)
 
             # Recálcula de valores de posição
             # Centroide
@@ -836,27 +836,27 @@ class  YoloMicroscopicDataProcessing:
 
             # Associação com o veículo das variáveis atualizadas
             # Posição
-            df_analysed[self.y_centroid_column] = yc
-            df_analysed[self.x_centroid_column] = xc
-            df_analysed[self.x_head_column] = head
-            df_analysed[self.x_tail_column] = tail
-            df_analysed[self.p1_x_bb_column] = x1
-            df_analysed[self.p1_y_bb_column] = y1
-            df_analysed[self.p2_x_bb_column] = x2
-            df_analysed[self.p2_y_bb_column] = y2
-            df_analysed[self.vehicle_length_column] = length
-            df_analysed[self.vehicle_width_column] = width
+            df_analyzed[self.y_centroid_column] = yc
+            df_analyzed[self.x_centroid_column] = xc
+            df_analyzed[self.x_head_column] = head
+            df_analyzed[self.x_tail_column] = tail
+            df_analyzed[self.p1_x_bb_column] = x1
+            df_analyzed[self.p1_y_bb_column] = y1
+            df_analyzed[self.p2_x_bb_column] = x2
+            df_analyzed[self.p2_y_bb_column] = y2
+            df_analyzed[self.vehicle_length_column] = length
+            df_analyzed[self.vehicle_width_column] = width
             # Velocidade
-            df_analysed[self.x_instant_speed_column] = x_instant_speed
-            df_analysed[self.y_instant_speed_column] = y_instant_speed
-            df_analysed[self.instant_speed_column] = ((df_analysed[self.x_instant_speed_column]**2) + (df_analysed[self.y_instant_speed_column]**2))**0.5
+            df_analyzed[self.x_instant_speed_column] = x_instant_speed
+            df_analyzed[self.y_instant_speed_column] = y_instant_speed
+            df_analyzed[self.instant_speed_column] = ((df_analyzed[self.x_instant_speed_column]**2) + (df_analyzed[self.y_instant_speed_column]**2))**0.5
             # Aceleração
-            df_analysed[self.x_instant_acc_column] = x_instant_acc
-            df_analysed[self.y_instant_acc_column] = y_instant_acc
-            df_analysed[self.instant_acc_column] = ((df_analysed[self.x_instant_acc_column]**2) + (df_analysed[self.y_instant_acc_column]**2))**0.5
+            df_analyzed[self.x_instant_acc_column] = x_instant_acc
+            df_analyzed[self.y_instant_acc_column] = y_instant_acc
+            df_analyzed[self.instant_acc_column] = ((df_analyzed[self.x_instant_acc_column]**2) + (df_analyzed[self.y_instant_acc_column]**2))**0.5
 
             # Mesclar coms os outros id
-            df_smooth = pd.concat([df_smooth,df_analysed[cols_keep]],ignore_index=True)
+            df_smooth = pd.concat([df_smooth,df_analyzed[cols_keep]],ignore_index=True)
 
         df_smooth = df_smooth.sort_values([self.frame_column,self.traffic_lane_column,self.x_centroid_column])
         df_smooth = df_smooth.reset_index(drop=True)
@@ -882,24 +882,24 @@ class  YoloMicroscopicDataProcessing:
             ignore_vehicle_types_list_distance = self.vehicle_category_list["two_wheel"] + self.vehicle_category_list["walk"]
         
         # Dados válidos
-        df_analysed = self.df[self.df[self.frame_column]==frame]
-        df_analysed = df_analysed[-df_analysed[self.vehicle_type_column].isin(ignore_vehicle_types_list_order)]
-        df_analysed = df_analysed.sort_values(by=self.x_head_column,ascending=False)
+        df_analyzed = self.df[self.df[self.frame_column]==frame]
+        df_analyzed = df_analyzed[-df_analyzed[self.vehicle_type_column].isin(ignore_vehicle_types_list_order)]
+        df_analyzed = df_analyzed.sort_values(by=self.x_head_column,ascending=False)
 
         if ignore_ext_interference:
-            df_analysed = df_analysed.dropna(subset=self.traffic_lane_column)
+            df_analyzed = df_analyzed.dropna(subset=self.traffic_lane_column)
         # Se não tiver nenhum veículo, retona o dataframe vazio
-        if df_analysed.empty:
-            return df_analysed
+        if df_analyzed.empty:
+            return df_analyzed
 
         # Lista de filas
         df_queue = pd.DataFrame()
 
-        while not df_analysed.empty:
+        while not df_analyzed.empty:
             # Dados do primeiro veículo
-            id_vehicle = df_analysed.iloc[0][self.id_column]
-            vehicle = df_analysed[df_analysed[self.id_column]==id_vehicle]
-            first_traffic_lane_vehicle = df_analysed.iloc[0][self.traffic_lane_column]
+            id_vehicle = df_analyzed.iloc[0][self.id_column]
+            vehicle = df_analyzed[df_analyzed[self.id_column]==id_vehicle]
+            first_traffic_lane_vehicle = df_analyzed.iloc[0][self.traffic_lane_column]
             queue_position = 1
             vehicle[self.queue_position_column] = [queue_position]
             vehicle['first_traffic_lane_vehicle'] = [first_traffic_lane_vehicle]
@@ -956,7 +956,7 @@ class  YoloMicroscopicDataProcessing:
                     break
 
             # Atualiza os dados, removendo os veículos das filas já computadas
-            df_analysed = df_analysed[-df_analysed[self.id_column].isin(df_queue[self.id_column])].sort_values(by=self.x_head_column,ascending=False)
+            df_analyzed = df_analyzed[-df_analyzed[self.id_column].isin(df_queue[self.id_column])].sort_values(by=self.x_head_column,ascending=False)
 
         df_queue["first_traffic_lane_vehicle"] = df_queue["first_traffic_lane_vehicle"].astype(int)
         
@@ -987,16 +987,16 @@ class  YoloMicroscopicDataProcessing:
         #     section_reference = self.motobox_end_section
 
         # # Dados referentes aos veiculos
-        # df_analysed = self.df[self.df[self.id_column]==id_vehicle]
+        # df_analyzed = self.df[self.df[self.id_column]==id_vehicle]
 
         # # Posição imediatamente antes e depois da seção
-        # head_position_after = df_analysed[df_analysed[self.x_head_column]>=section_reference][self.x_head_column].min()
-        # head_position_before = df_analysed[df_analysed[self.x_head_column]<section_reference][self.x_head_column].max()
+        # head_position_after = df_analyzed[df_analyzed[self.x_head_column]>=section_reference][self.x_head_column].min()
+        # head_position_before = df_analyzed[df_analyzed[self.x_head_column]<section_reference][self.x_head_column].max()
         # dx = head_position_after - head_position_before
 
         # # Instante em relação às posições escolhidas
-        # time_instant_after = df_analysed[df_analysed[self.x_head_column]==head_position_after][self.instant_column].iloc[0]
-        # time_instant_before = df_analysed[df_analysed[self.x_head_column]==head_position_before][self.instant_column].iloc[0]
+        # time_instant_after = df_analyzed[df_analyzed[self.x_head_column]==head_position_after][self.instant_column].iloc[0]
+        # time_instant_before = df_analyzed[df_analyzed[self.x_head_column]==head_position_before][self.instant_column].iloc[0]
         # dt = time_instant_after - time_instant_before
 
         # # Instante interpolado para a seção
@@ -1011,10 +1011,10 @@ class  YoloMicroscopicDataProcessing:
             section_reference = self.motobox_end_section
 
         # Dados referentes aos veiculos
-        df_analysed = self.df[self.df[self.id_column]==id_vehicle].sort_values(self.instant_column)
+        df_analyzed = self.df[self.df[self.id_column]==id_vehicle].sort_values(self.instant_column)
 
         # Lista de instantes
-        instant_list = df_analysed[self.instant_column].tolist()
+        instant_list = df_analyzed[self.instant_column].tolist()
 
         # Lista das posições cruzadas
         crossing_section = []
@@ -1022,7 +1022,7 @@ class  YoloMicroscopicDataProcessing:
         # da seção, gerando bugs. Dessa forma, se o veículo estiver à frente, ele receberá "after"
         # Se o veículo não recuar o suficiente para "recruzar" a seção, ele não constará com algum instante
         # antes e depois da seção, recaindo no mesmo if da para a ausência de dados nos últimos veículos
-        first_pos = df_analysed[df_analysed[self.instant_column]==min(instant_list)][self.x_head_column].iloc[0]
+        first_pos = df_analyzed[df_analyzed[self.instant_column]==min(instant_list)][self.x_head_column].iloc[0]
         status = 'before' if first_pos<section_reference else 'after'
         change_status = {
             'before':'after',
@@ -1030,7 +1030,7 @@ class  YoloMicroscopicDataProcessing:
         }
 
         for t in instant_list:
-            pos = df_analysed[df_analysed[self.instant_column]==t][self.x_head_column].iloc[0]
+            pos = df_analyzed[df_analyzed[self.instant_column]==t][self.x_head_column].iloc[0]
 
             if_status = {
                 'before':pos>=section_reference,
@@ -1066,34 +1066,34 @@ class  YoloMicroscopicDataProcessing:
 
         # abs(instant_reference_adjust-instant_reference)<0.1
         # Quadro de análise no instante de referencia
-        df_analysed = self.df[self.df[self.frame_column]==frame].sort_values(self.frame_column)
+        df_analyzed = self.df[self.df[self.frame_column]==frame].sort_values(self.frame_column)
 
         # Veículo particular
-        vehicle_df_analysed = df_analysed[df_analysed[self.id_column]==id_vehicle]
+        vehicle_df_analyzed = df_analyzed[df_analyzed[self.id_column]==id_vehicle]
 
         # Se o veículo particular não estiver no instante de tempo, pode-se utilizar a projeção
-        if len(vehicle_df_analysed)>0 or project_verification:
-            if len(vehicle_df_analysed)==0:
+        if len(vehicle_df_analyzed)>0 or project_verification:
+            if len(vehicle_df_analyzed)==0:
                 min_frame_vehicle =  self.df[self.df[self.id_column]==id_vehicle][self.frame_column].min()
                 max_frame_vehicle =  self.df[self.df[self.id_column]==id_vehicle][self.frame_column].max()
 
                 frame_vehicle_reference = max_frame_vehicle if frame > max_frame_vehicle else min_frame_vehicle
-                vehicle_df_analysed = self.df[(self.df[self.id_column]==id_vehicle) & (self.df[self.frame_column]==frame_vehicle_reference)].sort_values(self.frame_column)
+                vehicle_df_analyzed = self.df[(self.df[self.id_column]==id_vehicle) & (self.df[self.frame_column]==frame_vehicle_reference)].sort_values(self.frame_column)
             else:
                 pass
 
             if side_offset_vehicle==None:
-                side_offset_vehicle = self.side_offset_vehicle_dict[vehicle_df_analysed[self.vehicle_type_column].iloc[0]]
+                side_offset_vehicle = self.side_offset_vehicle_dict[vehicle_df_analyzed[self.vehicle_type_column].iloc[0]]
 
-            side_lim_p1 = vehicle_df_analysed[self.p1_y_bb_column].iloc[0] - side_offset_vehicle
-            side_lim_p2 = vehicle_df_analysed[self.p2_y_bb_column].iloc[0] + side_offset_vehicle
-            ahead_lim_p2 = vehicle_df_analysed[self.x_head_column].iloc[0] - max_longitudinal_distance_overlap
-            behind_lim_p1 = vehicle_df_analysed[self.x_tail_column].iloc[0] + max_longitudinal_distance_overlap
+            side_lim_p1 = vehicle_df_analyzed[self.p1_y_bb_column].iloc[0] - side_offset_vehicle
+            side_lim_p2 = vehicle_df_analyzed[self.p2_y_bb_column].iloc[0] + side_offset_vehicle
+            ahead_lim_p2 = vehicle_df_analyzed[self.x_head_column].iloc[0] - max_longitudinal_distance_overlap
+            behind_lim_p1 = vehicle_df_analyzed[self.x_tail_column].iloc[0] + max_longitudinal_distance_overlap
 
             # Veículo à frente mais próximo
-            mask_ahead = (df_analysed[self.p1_y_bb_column]<=side_lim_p2) & (df_analysed[self.p2_y_bb_column]>=side_lim_p1)
-            mask_ahead = mask_ahead & (df_analysed[self.x_tail_column]>=ahead_lim_p2) & (-df_analysed[self.vehicle_type_column].isin(ignore_vehicle_types_list))
-            ahead_vehicle_group = df_analysed[mask_ahead]
+            mask_ahead = (df_analyzed[self.p1_y_bb_column]<=side_lim_p2) & (df_analyzed[self.p2_y_bb_column]>=side_lim_p1)
+            mask_ahead = mask_ahead & (df_analyzed[self.x_tail_column]>=ahead_lim_p2) & (-df_analyzed[self.vehicle_type_column].isin(ignore_vehicle_types_list))
+            ahead_vehicle_group = df_analyzed[mask_ahead]
             ahead_vehicle_group['distance_between_vehicles'] = ahead_vehicle_group[self.x_tail_column] - ahead_lim_p2 - max_longitudinal_distance_overlap
 
         else:
@@ -1111,23 +1111,23 @@ class  YoloMicroscopicDataProcessing:
         ignore_vehicle_types_list:list=[]):
 
         # Quadro de análise no instante de referencia
-        df_analysed = self.df[self.df[self.frame_column]==frame].sort_values(self.frame_column)
+        df_analyzed = self.df[self.df[self.frame_column]==frame].sort_values(self.frame_column)
 
         # Veículo particular
-        vehicle_df_analysed = df_analysed[df_analysed[self.id_column]==id_vehicle]
+        vehicle_df_analyzed = df_analyzed[df_analyzed[self.id_column]==id_vehicle]
 
         if side_offset_vehicle==None:
-            side_offset_vehicle = self.side_offset_vehicle_dict[vehicle_df_analysed[self.vehicle_type_column].iloc[0]]
+            side_offset_vehicle = self.side_offset_vehicle_dict[vehicle_df_analyzed[self.vehicle_type_column].iloc[0]]
 
-        side_lim_p1 = vehicle_df_analysed[self.p1_y_bb_column].iloc[0] - side_offset_vehicle
-        side_lim_p2 = vehicle_df_analysed[self.p2_y_bb_column].iloc[0] + side_offset_vehicle
-        ahead_lim_p2 = vehicle_df_analysed[self.x_head_column].iloc[0] - max_longitudinal_distance_overlap
-        behind_lim_p1 = vehicle_df_analysed[self.x_tail_column].iloc[0] +  max_longitudinal_distance_overlap
+        side_lim_p1 = vehicle_df_analyzed[self.p1_y_bb_column].iloc[0] - side_offset_vehicle
+        side_lim_p2 = vehicle_df_analyzed[self.p2_y_bb_column].iloc[0] + side_offset_vehicle
+        ahead_lim_p2 = vehicle_df_analyzed[self.x_head_column].iloc[0] - max_longitudinal_distance_overlap
+        behind_lim_p1 = vehicle_df_analyzed[self.x_tail_column].iloc[0] +  max_longitudinal_distance_overlap
 
         # Veículo atrás
-        mask_behind = (df_analysed[self.p1_y_bb_column]<=side_lim_p2) & (df_analysed[self.p2_y_bb_column]>=side_lim_p1)
-        mask_behind = mask_behind & (df_analysed[self.x_head_column]<=behind_lim_p1) & (-df_analysed[self.vehicle_type_column].isin(ignore_vehicle_types_list))
-        behind_vehicle_group = df_analysed[mask_behind]
+        mask_behind = (df_analyzed[self.p1_y_bb_column]<=side_lim_p2) & (df_analyzed[self.p2_y_bb_column]>=side_lim_p1)
+        mask_behind = mask_behind & (df_analyzed[self.x_head_column]<=behind_lim_p1) & (-df_analyzed[self.vehicle_type_column].isin(ignore_vehicle_types_list))
+        behind_vehicle_group = df_analyzed[mask_behind]
         behind_vehicle_group['distance_between_vehicles'] = behind_lim_p1 - behind_vehicle_group[self.x_head_column] - max_longitudinal_distance_overlap
 
         return behind_vehicle_group
@@ -1199,24 +1199,24 @@ class  YoloMicroscopicDataProcessing:
         # instant_reference = self.df.iloc[(self.df[self.instant_column]-instant_reference).abs().argsort()[0]][self.instant_column]
 
         # Quadro de análise no instante de referencia
-        df_analysed = self.df[self.df[self.frame_column]==frame].sort_values(self.frame)
+        df_analyzed = self.df[self.df[self.frame_column]==frame].sort_values(self.frame)
 
-        if df_analysed.empty:
-            return df_analysed
+        if df_analyzed.empty:
+            return df_analyzed
 
         # Limites transversais
         up_lim_func = lambda x:PointToFunction(self.virtual_lane_lim[0])(x) - transverse_offset_motobox
         down_lim_func = lambda x:PointToFunction(self.virtual_lane_lim[-1])(x) + transverse_offset_motobox
-        df_analysed = df_analysed[df_analysed[self.y_centroid_column] >= df_analysed[self.x_centroid_column].apply(lambda x:up_lim_func(x))]
-        df_analysed = df_analysed[df_analysed[self.y_centroid_column] <= df_analysed[self.x_centroid_column].apply(lambda x:down_lim_func(x))]
+        df_analyzed = df_analyzed[df_analyzed[self.y_centroid_column] >= df_analyzed[self.x_centroid_column].apply(lambda x:up_lim_func(x))]
+        df_analyzed = df_analyzed[df_analyzed[self.y_centroid_column] <= df_analyzed[self.x_centroid_column].apply(lambda x:down_lim_func(x))]
 
         # Limites longitudinais
         start_lim = self.motobox_start_section - longitudinal_offset_motobox
         end_lim = self.motobox_end_section + longitudinal_offset_motobox
-        df_analysed = df_analysed[df_analysed[self.x_centroid_column] <= end_lim]
-        df_analysed = df_analysed[df_analysed[self.x_centroid_column] >= start_lim]
+        df_analyzed = df_analyzed[df_analyzed[self.x_centroid_column] <= end_lim]
+        df_analyzed = df_analyzed[df_analyzed[self.x_centroid_column] >= start_lim]
 
-        return df_analysed
+        return df_analyzed
 
     def PolygonalVeicleVirtualLane(
         self,
@@ -1240,7 +1240,7 @@ class  YoloMicroscopicDataProcessing:
         instant_reference = self.df.iloc[(self.df[self.instant_column]-instant_reference).abs().argsort()[0]][self.instant_column]
 
         # Quadro de análise no instante de referencia
-        df_analysed = self.df[self.df[self.instant_column]==instant_reference]
+        df_analyzed = self.df[self.df[self.instant_column]==instant_reference]
 
         # Motobox
         if not include_motorcycle_box:
@@ -1277,7 +1277,7 @@ class  YoloMicroscopicDataProcessing:
         for virtual_lane in virtual_lane_list:
             # Definição dos veículos que formam os limites das faixas
             # fwv - veiclos de 4 rodas naquele instante t
-            four_wheel_vehicle = df_analysed[df_analysed[self.vehicle_type_column].isin(self.vehicle_category_list['four_wheel'])].sort_values(self.x_centroid_column)
+            four_wheel_vehicle = df_analyzed[df_analyzed[self.vehicle_type_column].isin(self.vehicle_category_list['four_wheel'])].sort_values(self.x_centroid_column)
 
             # Faixa 1
             if virtual_lane==1:
@@ -1376,7 +1376,7 @@ class  YoloMicroscopicDataProcessing:
                     inf_lim_func = lambda x:PointToFunction(self.virtual_lane_lim[virtual_lane-1])(x) + 0.5*self.width_virtual_lane
 
             # Veiculos dentro do limite
-            vehicle_on_virtual_lane = df_analysed[df_analysed[self.vehicle_type_column].isin(self.vehicle_category_list['two_wheel'])]
+            vehicle_on_virtual_lane = df_analyzed[df_analyzed[self.vehicle_type_column].isin(self.vehicle_category_list['two_wheel'])]
             # Remove motocicletas no motobox
             if not include_motorcycle_box:
                 vehicle_on_virtual_lane = vehicle_on_virtual_lane[-vehicle_on_virtual_lane[self.id_column].isin(vehicle_motorcycle_box[self.id_column])]
@@ -1419,10 +1419,10 @@ class  YoloMicroscopicDataProcessing:
             lat_offset_motobox = 0.5*self.width_virtual_lane
 
         # Frame de análise no instante de referencia
-        df_analysed = self.df[self.df[self.frame_column]==frame]
+        df_analyzed = self.df[self.df[self.frame_column]==frame]
 
-        if df_analysed.empty:
-            return df_analysed
+        if df_analyzed.empty:
+            return df_analyzed
 
         # Motobox
         if not include_motorcycle_box:
@@ -1460,7 +1460,7 @@ class  YoloMicroscopicDataProcessing:
         for virtual_lane in virtual_lane_list:
             # Definição dos veículos que formam os limites das faixas
             # fwv - veiclos de 4 rodas naquele instante t
-            four_wheel_vehicle = df_analysed[df_analysed[self.vehicle_type_column].isin(self.vehicle_category_list['four_wheel'])].sort_values(self.x_centroid_column)
+            four_wheel_vehicle = df_analyzed[df_analyzed[self.vehicle_type_column].isin(self.vehicle_category_list['four_wheel'])].sort_values(self.x_centroid_column)
 
             # Faixa 1
             if virtual_lane==1:
@@ -1559,7 +1559,7 @@ class  YoloMicroscopicDataProcessing:
                     inf_lim_func = lambda x:PointToFunction(self.virtual_lane_lim[virtual_lane-1])(x) + 0.5*self.width_virtual_lane
 
             # Veiculos dentro do limite
-            vehicle_on_virtual_lane = df_analysed[df_analysed[self.vehicle_type_column].isin(self.vehicle_category_list['two_wheel'])]
+            vehicle_on_virtual_lane = df_analyzed[df_analyzed[self.vehicle_type_column].isin(self.vehicle_category_list['two_wheel'])]
             # Remove motocicletas no motobox, se for o caso
             if not include_motorcycle_box:
                 vehicle_on_virtual_lane = vehicle_on_virtual_lane[-vehicle_on_virtual_lane[self.id_column].isin(vehicle_motorcycle_box[self.id_column])]
@@ -1652,12 +1652,12 @@ class  YoloMicroscopicDataProcessing:
             valid_lane = True
             report = ''
             # Fila de veículos em uma determinada faixa
-            df_analysed = df_queue[df_queue[self.traffic_lane_column]==traffic_lane]
+            df_analyzed = df_queue[df_queue[self.traffic_lane_column]==traffic_lane]
             instant_min = str(int(instant_reference/60))+':'+(str(int(round(instant_reference % 60,0))) if len(str(int(round(instant_reference % 60,0))))>1 else '0'+str(int(round(instant_reference % 60,0))))
 
             # Exceções
             # Se houver a invasão de veículos de 4 rodas no motobox
-            vehicle_motobox_invasion = df_analysed[df_analysed[self.x_head_column]>=self.motobox_start_section+motobox_max_invasion_distance]
+            vehicle_motobox_invasion = df_analyzed[df_analyzed[self.x_head_column]>=self.motobox_start_section+motobox_max_invasion_distance]
             if len(vehicle_motobox_invasion)>0:
                 report = report + '@' if len(report)>0 else ''
                 report = report + f'O(s) veículo(s) {vehicle_motobox_invasion[self.id_column].tolist()} estão invadindo o motobox no instante {instant_min}'
@@ -1665,14 +1665,14 @@ class  YoloMicroscopicDataProcessing:
 
             # self.side_offset_vehicle_dict
             # Se nãou houver pelo menos N veículos na fila
-            if len(df_analysed)<N:
+            if len(df_analyzed)<N:
                 report = report + '@' if len(report)>0 else ''
                 report = report + f'Tamanho de fila no instante {instant_min} na faixa {traffic_lane} é menor que {N}'
                 valid_lane = False
             else:
                 # --------------------------------------------------------------
                 # Variável a ser explicada - headway acumulado do 4o veiculo
-                idN = df_analysed[df_analysed[self.queue_position_column]==N].iloc[0][self.id_column]
+                idN = df_analyzed[df_analyzed[self.queue_position_column]==N].iloc[0][self.id_column]
                 instant_crossing,instant_crossing_log = self.InstantCrossingSection(idN)
                 H4j = instant_crossing - instant_reference
 
@@ -1688,21 +1688,21 @@ class  YoloMicroscopicDataProcessing:
                 # Se alguma das distâncias for maior que 5m, verifica uma a uma, caso a
                 # maior que 5m  não possua moto entre os veículos, exclui o ciclo
                 pos_count = 1
-                new_id = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0][self.id_column]
-                vehicle_type = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0][self.vehicle_type_column]
-                distance_to_vehicle_behind = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0]['distance_between_vehicles']
+                new_id = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0][self.id_column]
+                vehicle_type = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0][self.vehicle_type_column]
+                distance_to_vehicle_behind = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0]['distance_between_vehicles']
                 # Veículo restritamente atrás
                 vehicle_behind = self.FirstVehicleBehind(
                     new_id,
                     instant_reference,
                     side_offset_vehicle=self.side_offset_vehicle_dict[vehicle_type]*2
                 )
-                while pos_count<len(df_analysed):
+                while pos_count<len(df_analyzed):
                     if (distance_to_vehicle_behind<8) or (vehicle_behind.iloc[0]['distance_between_vehicles']<8):
                         pos_count = pos_count + 1
-                        new_id = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0][self.id_column]
-                        vehicle_type = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0][self.vehicle_type_column]
-                        distance_to_vehicle_behind = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0]['distance_between_vehicles']
+                        new_id = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0][self.id_column]
+                        vehicle_type = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0][self.vehicle_type_column]
+                        distance_to_vehicle_behind = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0]['distance_between_vehicles']
                         # Veículo restritamente atrás
                         vehicle_behind = self.FirstVehicleBehind(
                             new_id,
@@ -1720,7 +1720,7 @@ class  YoloMicroscopicDataProcessing:
                 # Variável explicativa 1
                 # Motcicletas à frente do primeiro veículo
                 # Id do primeiro veiculo
-                id1 = df_analysed[df_analysed[self.queue_position_column]==1].iloc[0][self.id_column]
+                id1 = df_analyzed[df_analyzed[self.queue_position_column]==1].iloc[0][self.id_column]
                 # Todas as motocicletas à frente do priemiro veículo, incluindo lateralizadas
                 all_motorcycles = self.VehicleAhead(id1,instant_reference,side_offset_vehicle=0.30).sort_values(by='distance_between_vehicles')
                 motorcycles_ahead_projection = self.VehicleAhead(
@@ -1781,10 +1781,10 @@ class  YoloMicroscopicDataProcessing:
 
                 for pos in range(2,N+1):
                     # # Posição correspondente a frente do carro da posição "pos"
-                    # lim_distance_between_motorcycle_behind = df_analysed[df_analysed[self.queue_position_column]==pos][self.x_head_column].iloc[0]
+                    # lim_distance_between_motorcycle_behind = df_analyzed[df_analyzed[self.queue_position_column]==pos][self.x_head_column].iloc[0]
 
                     # # Veíuclo na posição "pos - 1"
-                    # vehicle = df_analysed[df_analysed[self.queue_position_column]==pos-1]
+                    # vehicle = df_analyzed[df_analyzed[self.queue_position_column]==pos-1]
 
                     # # Motos atrás do veículo e com a traseira da moto à frente da posição da frente do veículo de trás
                     # motocycle_behind = self.VehicleBehind(vehicle[self.id_column].iloc[0],instant_reference,side_offset_vehicle=0.30,ignore_vehicle_types_list=self.vehicle_category_list['four_wheel'])
@@ -1796,11 +1796,11 @@ class  YoloMicroscopicDataProcessing:
                     # idQmevj.append(idQmevjp)
 
                     # Posição correspondente a atrás do carro da posição "pos-1"
-                    lim_distance_between_motorcycle_ahead = df_analysed[df_analysed[self.queue_position_column]==pos-1][self.x_tail_column].iloc[0]
+                    lim_distance_between_motorcycle_ahead = df_analyzed[df_analyzed[self.queue_position_column]==pos-1][self.x_tail_column].iloc[0]
                     lim_distance_between_motorcycle_ahead = lim_distance_between_motorcycle_ahead + max_longitudinal_distance_overlap
 
                     # Veíuclo na posição "pos"
-                    vehicle = df_analysed[df_analysed[self.queue_position_column]==pos]
+                    vehicle = df_analyzed[df_analyzed[self.queue_position_column]==pos]
 
                     # Motos a frnte do veículo e com a traseira da moto à frente da posição da frente do veículo de trás
                     # Mesmos critérios para a variável moto a frente do 1º veículo
@@ -1821,8 +1821,8 @@ class  YoloMicroscopicDataProcessing:
                 # --------------------------------------------------------------
                 # Variável explicativa 3 - motos no corredor virtual
                 # Limites longitudinais
-                lim_first_vehicle = df_analysed[df_analysed[self.queue_position_column]==1].iloc[0][self.x_head_column] + distance_between_motorcycle_ahead_virtual_lane
-                lim_N_vehicle = df_analysed[df_analysed[self.queue_position_column]==N].iloc[0][self.x_head_column] - distance_between_motorcycle_behind_virtual_lane
+                lim_first_vehicle = df_analyzed[df_analyzed[self.queue_position_column]==1].iloc[0][self.x_head_column] + distance_between_motorcycle_ahead_virtual_lane
+                lim_N_vehicle = df_analyzed[df_analyzed[self.queue_position_column]==N].iloc[0][self.x_head_column] - distance_between_motorcycle_behind_virtual_lane
                 # Todas as motos do correor virtual
                 # motocycle_virtural_lane = self.PolygonalVeicleVirtualLane(
                 #     instant_reference,
@@ -1841,7 +1841,7 @@ class  YoloMicroscopicDataProcessing:
                 motocycle_virtural_lane = motocycle_virtural_lane[motocycle_virtural_lane[self.x_head_column]>=lim_N_vehicle]
 
                 # Ids das motos até o limite lateral das motos
-                motorcycle_side = pd.concat([self.SideVehicle(id_vehicle,instant_reference,overlap_lat=max_transversel_distance_overlap_virtual_lane) for id_vehicle in df_analysed[df_analysed[self.queue_position_column].between(1,N)][self.id_column].tolist()])
+                motorcycle_side = pd.concat([self.SideVehicle(id_vehicle,instant_reference,overlap_lat=max_transversel_distance_overlap_virtual_lane) for id_vehicle in df_analyzed[df_analyzed[self.queue_position_column].between(1,N)][self.id_column].tolist()])
                 motorcycle_side = motorcycle_side[motorcycle_side['lateral_distance_between_vehicles'].abs()<=1][self.id_column].unique()
                 motocycle_virtural_lane = motocycle_virtural_lane[motocycle_virtural_lane[self.id_column].isin(motorcycle_side)]
 
@@ -1855,7 +1855,7 @@ class  YoloMicroscopicDataProcessing:
                 idQmcvpj = []
                 for pos in range(1,N+1):
                     # Veiculo
-                    vehicle = df_analysed[df_analysed[self.queue_position_column]==pos]
+                    vehicle = df_analyzed[df_analyzed[self.queue_position_column]==pos]
 
                     # Limites longitudinais
                     lim_ahead = vehicle.iloc[0][self.x_head_column] + distance_between_motorcycle_ahead_virtual_lane
@@ -1877,7 +1877,7 @@ class  YoloMicroscopicDataProcessing:
 
                 # --------------------------------------------------------------
                 # Variável 6 - Quantidade de veículos pesados
-                heavy_vehicle = df_analysed[(df_analysed[self.queue_position_column].between(1,N)) & (df_analysed[self.vehicle_type_column].isin(self.vehicle_category_list['heavy']))]
+                heavy_vehicle = df_analyzed[(df_analyzed[self.queue_position_column].between(1,N)) & (df_analyzed[self.vehicle_type_column].isin(self.vehicle_category_list['heavy']))]
                 idQvpj = heavy_vehicle[self.id_column].tolist()
 
                 # --------------------------------------------------------------
@@ -2867,12 +2867,12 @@ class  YoloMicroscopicDataProcessing:
             valid_lane = True
             report = ''
             # Fila de veículos em uma determinada faixa
-            df_analysed = df_queue[df_queue[self.traffic_lane_column]==traffic_lane]
+            df_analyzed = df_queue[df_queue[self.traffic_lane_column]==traffic_lane]
             instant_min = str(int(instant_reference/60))+':'+(str(int(round(instant_reference % 60,0))) if len(str(int(round(instant_reference % 60,0))))>1 else '0'+str(int(round(instant_reference % 60,0))))
 
             # Exceções
             # Se houver a invasão de veículos de 4 rodas no motobox
-            vehicle_motobox_invasion = df_analysed[df_analysed[self.x_head_column]>=self.motobox_start_section+motobox_max_invasion_distance]
+            vehicle_motobox_invasion = df_analyzed[df_analyzed[self.x_head_column]>=self.motobox_start_section+motobox_max_invasion_distance]
             if len(vehicle_motobox_invasion)>0:
                 report = report + '@' if len(report)>0 else ''
                 report = report + f'O(s) veículo(s) {vehicle_motobox_invasion[self.id_column].tolist()} estão invadindo o motobox no instante {instant_min}'
@@ -2880,14 +2880,14 @@ class  YoloMicroscopicDataProcessing:
 
             # self.side_offset_vehicle_dict
             # Se nãou houver pelo menos N veículos na fila
-            if len(df_analysed)<N:
+            if len(df_analyzed)<N:
                 report = report + '@' if len(report)>0 else ''
                 report = report + f'Tamanho de fila no instante {instant_min} na faixa {traffic_lane} é menor que {N}'
                 valid_lane = False
             else:
                 # --------------------------------------------------------------
                 # Variável a ser explicada - headway acumulado do 4o veiculo
-                idN = df_analysed[df_analysed[self.queue_position_column]==N].iloc[0][self.id_column]
+                idN = df_analyzed[df_analyzed[self.queue_position_column]==N].iloc[0][self.id_column]
                 instant_crossing,instant_crossing_log = self.InstantCrossingSection(idN)
                 H4j = instant_crossing - instant_reference
 
@@ -2903,21 +2903,21 @@ class  YoloMicroscopicDataProcessing:
                 # Se alguma das distâncias for maior que 5m, verifica uma a uma, caso a
                 # maior que 5m  não possua moto entre os veículos, exclui o ciclo
                 pos_count = 1
-                new_id = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0][self.id_column]
-                vehicle_type = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0][self.vehicle_type_column]
-                distance_to_vehicle_behind = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0]['distance_between_vehicles']
+                new_id = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0][self.id_column]
+                vehicle_type = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0][self.vehicle_type_column]
+                distance_to_vehicle_behind = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0]['distance_between_vehicles']
                 # Veículo restritamente atrás
                 vehicle_behind = self.FirstVehicleBehind(
                     new_id,
                     instant_reference,
                     side_offset_vehicle=self.side_offset_vehicle_dict[vehicle_type]*2
                 )
-                while pos_count<len(df_analysed):
+                while pos_count<len(df_analyzed):
                     if (distance_to_vehicle_behind<8) or (vehicle_behind.iloc[0]['distance_between_vehicles']<8):
                         pos_count = pos_count + 1
-                        new_id = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0][self.id_column]
-                        vehicle_type = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0][self.vehicle_type_column]
-                        distance_to_vehicle_behind = df_analysed[df_analysed[self.queue_position_column]==pos_count].iloc[0]['distance_between_vehicles']
+                        new_id = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0][self.id_column]
+                        vehicle_type = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0][self.vehicle_type_column]
+                        distance_to_vehicle_behind = df_analyzed[df_analyzed[self.queue_position_column]==pos_count].iloc[0]['distance_between_vehicles']
                         # Veículo restritamente atrás
                         vehicle_behind = self.FirstVehicleBehind(
                             new_id,
@@ -2935,13 +2935,13 @@ class  YoloMicroscopicDataProcessing:
                 # Variável explicativa 1
                 # Motcicletas à frente do primeiro veículo
                 # Id do primeiro veiculo
-                id1 = df_analysed[df_analysed[self.queue_position_column]==1].iloc[0][self.id_column]
+                id1 = df_analyzed[df_analyzed[self.queue_position_column]==1].iloc[0][self.id_column]
 
                 # Cálculos do H1
                 instant_crossing,instant_crossing_log = self.InstantCrossingSection(id1)
                 H1j = instant_crossing - instant_reference
                 # Tipo de veículo referente ao primeiro
-                Qvp1j = 1 if df_analysed[df_analysed[self.queue_position_column]==1].iloc[0][self.vehicle_type_column] in self.vehicle_category_list['heavy'] else 0
+                Qvp1j = 1 if df_analyzed[df_analyzed[self.queue_position_column]==1].iloc[0][self.vehicle_type_column] in self.vehicle_category_list['heavy'] else 0
 
                 # Todas as motocicletas à frente do priemiro veículo, incluindo lateralizadas
                 all_motorcycles = self.VehicleAhead(id1,instant_reference,side_offset_vehicle=0.30).sort_values(by='distance_between_vehicles')
@@ -3003,10 +3003,10 @@ class  YoloMicroscopicDataProcessing:
 
                 for pos in range(2,N+1):
                     # # Posição correspondente a frente do carro da posição "pos"
-                    # lim_distance_between_motorcycle_behind = df_analysed[df_analysed[self.queue_position_column]==pos][self.x_head_column].iloc[0]
+                    # lim_distance_between_motorcycle_behind = df_analyzed[df_analyzed[self.queue_position_column]==pos][self.x_head_column].iloc[0]
 
                     # # Veíuclo na posição "pos - 1"
-                    # vehicle = df_analysed[df_analysed[self.queue_position_column]==pos-1]
+                    # vehicle = df_analyzed[df_analyzed[self.queue_position_column]==pos-1]
 
                     # # Motos atrás do veículo e com a traseira da moto à frente da posição da frente do veículo de trás
                     # motocycle_behind = self.VehicleBehind(vehicle[self.id_column].iloc[0],instant_reference,side_offset_vehicle=0.30,ignore_vehicle_types_list=self.vehicle_category_list['four_wheel'])
@@ -3018,11 +3018,11 @@ class  YoloMicroscopicDataProcessing:
                     # idQmevj.append(idQmevjp)
 
                     # Posição correspondente a atrás do carro da posição "pos-1"
-                    lim_distance_between_motorcycle_ahead = df_analysed[df_analysed[self.queue_position_column]==pos-1][self.x_tail_column].iloc[0]
+                    lim_distance_between_motorcycle_ahead = df_analyzed[df_analyzed[self.queue_position_column]==pos-1][self.x_tail_column].iloc[0]
                     lim_distance_between_motorcycle_ahead = lim_distance_between_motorcycle_ahead + max_longitudinal_distance_overlap
 
                     # Veíuclo na posição "pos"
-                    vehicle = df_analysed[df_analysed[self.queue_position_column]==pos]
+                    vehicle = df_analyzed[df_analyzed[self.queue_position_column]==pos]
 
                     # Motos a frnte do veículo e com a traseira da moto à frente da posição da frente do veículo de trás
                     # Mesmos critérios para a variável moto a frente do 1º veículo
@@ -3043,8 +3043,8 @@ class  YoloMicroscopicDataProcessing:
                 # --------------------------------------------------------------
                 # Variável explicativa 3 - motos no corredor virtual
                 # Limites longitudinais
-                lim_first_vehicle = df_analysed[df_analysed[self.queue_position_column]==1].iloc[0][self.x_head_column] + distance_between_motorcycle_ahead_virtual_lane
-                lim_N_vehicle = df_analysed[df_analysed[self.queue_position_column]==N].iloc[0][self.x_head_column] - distance_between_motorcycle_behind_virtual_lane
+                lim_first_vehicle = df_analyzed[df_analyzed[self.queue_position_column]==1].iloc[0][self.x_head_column] + distance_between_motorcycle_ahead_virtual_lane
+                lim_N_vehicle = df_analyzed[df_analyzed[self.queue_position_column]==N].iloc[0][self.x_head_column] - distance_between_motorcycle_behind_virtual_lane
                 # Todas as motos do correor virtual
                 # motocycle_virtural_lane = self.PolygonalVeicleVirtualLane(
                 #     instant_reference,
@@ -3063,7 +3063,7 @@ class  YoloMicroscopicDataProcessing:
                 motocycle_virtural_lane = motocycle_virtural_lane[motocycle_virtural_lane[self.x_head_column]>=lim_N_vehicle]
 
                 # Ids das motos até o limite lateral das motos
-                motorcycle_side = pd.concat([self.SideVehicle(id_vehicle,instant_reference,overlap_lat=max_transversel_distance_overlap_virtual_lane) for id_vehicle in df_analysed[df_analysed[self.queue_position_column].between(1,N)][self.id_column].tolist()])
+                motorcycle_side = pd.concat([self.SideVehicle(id_vehicle,instant_reference,overlap_lat=max_transversel_distance_overlap_virtual_lane) for id_vehicle in df_analyzed[df_analyzed[self.queue_position_column].between(1,N)][self.id_column].tolist()])
                 motorcycle_side = motorcycle_side[motorcycle_side['lateral_distance_between_vehicles'].abs()<=1][self.id_column].unique()
                 motocycle_virtural_lane = motocycle_virtural_lane[motocycle_virtural_lane[self.id_column].isin(motorcycle_side)]
 
@@ -3077,7 +3077,7 @@ class  YoloMicroscopicDataProcessing:
                 idQmcvpj = []
                 for pos in range(1,N+1):
                     # Veiculo
-                    vehicle = df_analysed[df_analysed[self.queue_position_column]==pos]
+                    vehicle = df_analyzed[df_analyzed[self.queue_position_column]==pos]
 
                     # Limites longitudinais
                     lim_ahead = vehicle.iloc[0][self.x_head_column] + distance_between_motorcycle_ahead_virtual_lane
@@ -3101,7 +3101,7 @@ class  YoloMicroscopicDataProcessing:
 
                 # --------------------------------------------------------------
                 # Variável 6 - Quantidade de veículos pesados
-                heavy_vehicle = df_analysed[(df_analysed[self.queue_position_column].between(1,N)) & (df_analysed[self.vehicle_type_column].isin(self.vehicle_category_list['heavy']))]
+                heavy_vehicle = df_analyzed[(df_analyzed[self.queue_position_column].between(1,N)) & (df_analyzed[self.vehicle_type_column].isin(self.vehicle_category_list['heavy']))]
                 idQvpj = heavy_vehicle[self.id_column].tolist()
 
                 # --------------------------------------------------------------
@@ -3655,6 +3655,66 @@ class  YoloMicroscopicDataProcessing:
         hs = pd.concat(hs,ignore_index=True)
 
         return hs
+
+    def DirectionEstimate(
+        self,
+        id_vehicle,
+        x_column=None,
+        y_column=None,
+        wl=15,
+        threshold_direction_sum=0.25
+    ):
+        
+        if x_column==None:
+            x_column = self.x_centroid_column
+        if y_column==None:
+            y_column = self.y_centroid_column
+        
+        df_analyzed = self.df.query(f"{self.id_column} == {id_vehicle}")
+        df_analyzed = df_analyzed.sort_values(by=self.frame_column)
+
+        n_sample = len(df_analyzed)
+
+        if n_sample<wl:
+            return pd.DataFrame()
+        
+        # Direção do frame i é a direção média do frame i - 1 e i + 1
+        direction_x = [df_analyzed[x_column].iloc[i+int(wl/2)]-df_analyzed[x_column].iloc[i-int(wl/2)] for i in range(int(wl/2),n_sample-int(wl/2))]
+        direction_x = direction_x[:int(wl/2)] + direction_x + direction_x[-int(wl/2):]
+
+        direction_y = [df_analyzed[y_column].iloc[i+int(wl/2)]-df_analyzed[y_column].iloc[i-int(wl/2)] for i in range(int(wl/2),n_sample-int(wl/2))]
+        direction_y = direction_y[:int(wl/2)] + direction_y + direction_y[-int(wl/2):]
+
+        # Ajuste de direção indeterminada
+        # Se a soma das direções x e y em metro for muito baixa
+        # Ignora essa métrica e pega a anterior
+        
+        for i in range(n_sample):
+            if i>wl:
+                dir_x = abs(direction_x[i])
+                dir_y = abs(direction_y[i])
+                direction_x[i] = direction_x[i] if dir_x+dir_y>threshold_direction_sum else np.mean(direction_x[i-wl:i])
+                direction_y[i] = direction_y[i] if dir_x+dir_y>threshold_direction_sum else np.mean(direction_y[i-wl:i])
+
+        df_analyzed['direction_x'] = direction_x
+        df_analyzed['direction_y'] = direction_y
+
+        # Normalizar vetor
+        vector = df_analyzed.apply(lambda x:np.array([x['direction_x'],x['direction_y'],0]),axis=1)
+        magnitude = vector.apply(lambda x:np.linalg.norm(x))
+        normalized_vector = vector / magnitude
+        # Suavizar vetor normalizado
+        df_analyzed['direction_norm_x'] = normalized_vector.apply(lambda x:x[0])
+        df_analyzed['direction_norm_y'] = normalized_vector.apply(lambda x:x[1])
+
+        # Angulo
+        df_analyzed['rad'] = df_analyzed.apply(lambda x:np.arctan2(x['direction_norm_y'],(x['direction_norm_x'] if x['direction_norm_x']!=0 else 0.0000000000001)),axis=1)
+        df_analyzed['degree'] = df_analyzed['rad'].apply(np.degrees)
+
+        # yaw rate
+        df_analyzed['yaw_rate'] = np.gradient(df_analyzed['rad'],df_analyzed[self.instant_column],edge_order=2)
+
+        return df_analyzed
 
 # Fluxo de execução para trabalhar com múltiplos arquivos
 # Copiar o padrão de alterar

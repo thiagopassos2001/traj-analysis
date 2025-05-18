@@ -31,7 +31,11 @@ if __name__=="__main__":
 
     model.df = pd.read_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv")
 
-    id_motorcycle
+    result = model.DirectionEstimate(id_vehicle=333)# ["id","instant","x","degree"]
+
+    print(result)
+
+    result.to_excel("tests\dir_333_teste.xlsx",index=False)
 
     # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
 
