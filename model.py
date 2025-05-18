@@ -2597,44 +2597,13 @@ class  YoloMicroscopicDataProcessing:
 
         # Headway entre---------------------------------------------------------------------------------
         last_frame = frame + int(df_analysis["hd4_time"].max()*self.fps)
-        headway_sequence = self.GroupVechiclesCrossingSection(
+        headways = self.GVCS_Type1(
             start_frame=frame,
             last_frame=last_frame,
-            alignment_check=True
         )
-
-        # Corrigir alinhamento
-        for index,row in df_analysis.iterrows():
-            alignment_set = headway_sequence[headway_sequence[self.id_column]==row["id1"]]
-
-            if alignment_set.empty:
-                alignment_set = headway_sequence[headway_sequence[self.id_column]==row["idj"][1]]
-            alignment_set = alignment_set["alignment"].values[0]
-            headway_sequence.loc[headway_sequence[self.id_column].isin(row["idj"]),"alignment"] = alignment_set
-            df_analysis.loc[index,"alignment"] = alignment_set
-
-        headway_sequence = headway_sequence.sort_values(by=["alignment",self.frame_column]).reset_index()
-        
-        for index,row in headway_sequence.iterrows():
-            if index==0:
-                headway_sequence.loc[index,"queue_position"] = 1
-            elif row["alignment"]!=headway_sequence["alignment"].values[index-1]:
-                headway_sequence.loc[index,"queue_position"] = 1
-            else:
-                headway_sequence.loc[index,"queue_position"] = headway_sequence["queue_position"].values[index-1] + 1
-        
-        hs = []
-        for index,row in df_analysis.iterrows():
-            value = headway_sequence[headway_sequence['alignment']==row["alignment"]]
-            hd = [float(instant)]+value[self.instant_column].tolist()
-            hd = [j-i for i,j in zip(hd[:-1],hd[1:])]
-            value["hd"] = hd
-            hs.append(value)
-
-            df_analysis.loc[index,"MaxHdj"] = [{int(value[value["hd"]==max(hd)][self.id_column].values[0]):round(max(hd),2)}]
-        
-        df_analysis["MaxHdj"] = df_analysis["MaxHdj"].apply(lambda value:value[0])
-        hs = pd.concat(hs,ignore_index=False)
+        df_analysis["alignment"] = df_analysis["id4"].apply(lambda value:headways[headways[self.id_column]==value]["alignment"].values[0])
+        df_analysis["MaxHdj"] = df_analysis["alignment"].apply(lambda value:headways[headways["alignment"]==value]["headway"].max())
+        df_analysis["idMaxHdj"] = df_analysis["MaxHdj"].apply(lambda value:headways[headways["headway"]==value][self.id_column].values[0])
         # ---------------------------------------------------------------------------------
 
         # Unir com os reports
@@ -2661,7 +2630,9 @@ class  YoloMicroscopicDataProcessing:
         df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
         df_analysis.insert(0,self.frame_column,frame)
 
-        return df_analysis,hs
+        headways.insert(0,"time_mm:ss",headways["start_frame"].apply(lambda value:f"{int((value/self.fps)//60):02}:{int((value/self.fps)%60):02}"))
+        
+        return df_analysis,headways
     
     def MotorcycleAheadFirstAnalysisDocAlessandro(
             self,
@@ -3544,8 +3515,7 @@ class  YoloMicroscopicDataProcessing:
         start_frame=None,
         last_frame=None,
         max_dist_between_vehicles=1.5,
-        max_longitudinal_distance_overlap=0.3,
-        ignore_vehicle_types_list=[]):
+        max_longitudinal_distance_overlap=0.3):
         """
         Do a something
         """
@@ -3571,7 +3541,8 @@ class  YoloMicroscopicDataProcessing:
                 row[self.id_column],
                 frame=row[self.frame_column],
                 side_offset_vehicle=0,
-                ignore_vehicle_types_list=ignore_vehicle_types_list
+                ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"],
+                max_longitudinal_distance_overlap=max_longitudinal_distance_overlap
             )
 
             motorcycle_between_checked = []
@@ -3580,24 +3551,28 @@ class  YoloMicroscopicDataProcessing:
                     id_vehicle_leader=row[self.id_column],
                     id_vehicle_follower=first_vehicle_behind[self.id_column].values[0],
                     frame=row[self.frame_column],
+                    max_long_dist_overlap=max_longitudinal_distance_overlap
                 )
 
                 if not motorcycle_between.empty:
                     for _,row_motorcycle in motorcycle_between.iterrows():
+                        # Verifica algumas restrições, como se a moto considerada
+                        # está "restrita" por outro veículo, só assim será aceita e 
+                        # adicionada à lista "motorcycle_between_checked"
                         check_restriction = self.FirstVehicleAhead(
                             row_motorcycle[self.id_column],
                             frame=row_motorcycle[self.frame_column],
-                            side_offset_vehicle=0)
+                            side_offset_vehicle=0,
+                            max_longitudinal_distance_overlap=max_longitudinal_distance_overlap)
 
                         if not check_restriction.empty:
                             if check_restriction[self.id_column].values[0]==row[self.id_column]:
                                 motorcycle_between_checked.append(row_motorcycle[self.id_column])
                             elif check_restriction["distance_between_vehicles"].values[0]<=max_dist_between_vehicles:
                                 motorcycle_between_checked.append(row_motorcycle[self.id_column])
-                            else:
-                                pass
             
             df_two_wheel_row = pd.DataFrame()
+            # Se houver ids, calcula o instante de passagem na seção dessas motos
             if len(motorcycle_between_checked)>0:
                 df_two_wheel_row = []
                 for vehicle_id in motorcycle_between_checked:
@@ -3613,8 +3588,8 @@ class  YoloMicroscopicDataProcessing:
                 
                 df_two_wheel.append(df_two_wheel_row[keep_cols])
         
-        motorcycle_first_vehicle = df_four_wheel[df_four_wheel["queue_position"]==1]
-        for _,row in motorcycle_first_vehicle.iterrows():
+        first_vehicle = df_four_wheel[df_four_wheel["queue_position"]==1]
+        for _,row in first_vehicle.iterrows():
             all_motorcycle_ahead = self.FirstVehicleAhead(
                 row[self.id_column],
                 frame=start_frame+int((row[self.frame_column]-start_frame)*0.5),
@@ -3631,6 +3606,9 @@ class  YoloMicroscopicDataProcessing:
 
         all_vehicles = pd.concat([df_four_wheel]+df_two_wheel,ignore_index=True)
 
+        # Remove veículos que passaram antes do instante inicial
+        all_vehicles = all_vehicles[all_vehicles[self.frame_column]>=start_frame]
+
         # Ajustes e cálculo do headway
         all_vehicles = all_vehicles.sort_values(by=["alignment",self.frame_column]).reset_index()
         
@@ -3643,18 +3621,19 @@ class  YoloMicroscopicDataProcessing:
                 all_vehicles.loc[index,"queue_position"] = all_vehicles["queue_position"].values[index-1] + 1
         
         start_instant = int(start_frame/self.fps)
-        hs = []
+        headways = []
         alignment = all_vehicles["alignment"].unique().tolist()
         for al in alignment:
             value = all_vehicles[all_vehicles['alignment']==al]
             hd = [float(start_instant)]+value[self.instant_column].tolist()
             hd = [j-i for i,j in zip(hd[:-1],hd[1:])]
-            value["hd"] = hd
-            hs.append(value)
+            value["headway"] = hd
+            headways.append(value)
         
-        hs = pd.concat(hs,ignore_index=True)
+        headways = pd.concat(headways,ignore_index=True)
+        headways.insert(0,"start_frame",start_frame)
 
-        return hs
+        return headways
 
     def DirectionEstimate(
         self,
