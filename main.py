@@ -23,7 +23,7 @@ start_timer = timeit.default_timer()
 if __name__=="__main__":
     # model = YoloMicroscopicDataProcessing()
     # model.ImportFromJSON(
-    #     "data/json/C_x_13M_SemMotobox_D5_0001.json",
+    #     "data/json/BM_x_PA_D3_0006.json",
     #     post_processing=model.PostProcessing1)
     # Suavizar  (1a vez)
     # model_smoothed = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
@@ -31,7 +31,7 @@ if __name__=="__main__":
 
     # model.df = pd.read_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv")
 
-    # result = RunHd4Analysis("data/json/C_x_13M_SemMotobox_D5_0001.json")
+    # result = model.Hd4Analysis(model.green_open_time[0])
 
     # print(result)
 

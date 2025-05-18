@@ -3584,7 +3584,7 @@ class  YoloMicroscopicDataProcessing:
                 
                 df_two_wheel_row = pd.concat(df_two_wheel_row,ignore_index=True)
                 df_two_wheel_row["alignment"] = row["alignment"]
-                df_two_wheel_row["queue_position"] = row["queue_position"] + 1 # dummy
+                df_two_wheel_row["queue_position"] = 0 # dummy
                 
                 df_two_wheel.append(df_two_wheel_row[keep_cols])
         
@@ -3600,14 +3600,19 @@ class  YoloMicroscopicDataProcessing:
                         vehicle_id=all_motorcycle_ahead[self.id_column].values[0],
                         section=section,
                     )
-                row_motorcycle["alignment"] = row["alignment"]
-                row_motorcycle["queue_position"] = row["queue_position"] + -1 # dummy
-                df_two_wheel.append(row_motorcycle[keep_cols])
+                # Pode ocorrer no inicio do vídeo, 
+                # ter uma moto avançando a linha de retenção
+                if not row_motorcycle.empty:
+                    row_motorcycle["alignment"] = row["alignment"]
+                    row_motorcycle["queue_position"] = 0 # dummy
+                    df_two_wheel.append(row_motorcycle[keep_cols])
 
         all_vehicles = pd.concat([df_four_wheel]+df_two_wheel,ignore_index=True)
 
         # Remove veículos que passaram antes do instante inicial
         all_vehicles = all_vehicles[all_vehicles[self.frame_column]>=start_frame]
+
+        all_vehicles["queue_position_origin"] = all_vehicles["queue_position"]
 
         # Ajustes e cálculo do headway
         all_vehicles = all_vehicles.sort_values(by=["alignment",self.frame_column]).reset_index()
