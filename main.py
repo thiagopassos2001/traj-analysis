@@ -7,18 +7,31 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
+import timeit
+
+start_timer = timeit.default_timer()
+# Notas
+
+# # Suavização
+# model = YoloMicroscopicDataProcessing()
+# model.ImportFromJSON(
+#     "data/json/C_x_13M_SemMotobox_D5_0001.json",
+#     post_processing=model.PostProcessing1)
+# model_smoothed = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
+# model_smoothed.to_csv("output.csv",index=False)
+
 if __name__=="__main__":
     model = YoloMicroscopicDataProcessing()
     model.ImportFromJSON(
-        "data/json/C_x_13M_D7_0002.json",
+        "data/json/C_x_13M_SemMotobox_D5_0001.json",
         post_processing=model.PostProcessing1)
-    
-    result = model.GVCS_Type1(
-        start_frame=int(model.fps*model.green_open_time[0]),
-        last_frame=int(model.fps*(model.green_open_time[0]+30)),
-        ignore_vehicle_types_list=model.vehicle_category_list["two_wheel"])
+    # Suavizar  (1a vez)
+    # model_smoothed = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
+    # model_smoothed.to_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv",index=False)
 
-    print(result)
+    model.df = pd.read_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv")
+
+    id_motorcycle
 
     # root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
 
@@ -63,3 +76,6 @@ if __name__=="__main__":
     #     df.append(df_)
     # df = pd.concat(df,ignore_index=True)
     # df.to_excel("data/summary/hd_check_10_05_25.xlsx",index=False)
+stop_timer = timeit.default_timer()
+count_timer = stop_timer - start_timer
+print(f"Execução: {int(count_timer//60):02}:{int(count_timer%60):02} (mm:ss)")

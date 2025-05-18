@@ -780,13 +780,12 @@ class  YoloMicroscopicDataProcessing:
         Suaviza as variáveis de posição, velocidade e aceleleração com base em
         procedimendo especificicado dentro da função
         Descrição:
-        * Redução para a frequência especificada pelo step, no caso Freq = FreqAtual/step
-        * Suavização da posição dos pontos limites do veículo pelo método gausiano unidimensional com o sigma especificado
+        * Suavização da posição dos pontos limites do veículo pelo método SavGol
         * Recálculo das coordenadas de centróide, altura e largura
         * Recálculo da velocidade pelo np.gradient baseado no centroide
-        * Suavização da velocidade pelo método gausiano unidimensional com o sigma especificado
+        * Suavização da velocidade pelo método SavGol
         * Suavização da aceleração pelo  pelo np.gradient baseado no centroide
-        * Suavização da aceleração pelo método gausiano unidimensional com o sigma especificado
+        * Suavização da aceleração pelo método SavGol
         '''
         df_smooth = pd.DataFrame()
         frame_range_list = list(range(min(self.df[self.frame_column]),max(self.df[self.frame_column])+1,1))
