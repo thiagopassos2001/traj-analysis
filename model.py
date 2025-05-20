@@ -3532,6 +3532,22 @@ class  YoloMicroscopicDataProcessing:
             last_frame=last_frame,
             alignment_check=True,
             ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"])
+        
+        df_four_wheel_first_frame = self.QueueDetector(frame=start_frame)
+        df_four_wheel_first_frame = df_four_wheel_first_frame.rename(columns={
+            "queue_position":"start_queue_position"
+        })
+
+        df_four_wheel = df_four_wheel.merge(
+            df_four_wheel_first_frame[[self.id_column,"start_queue_position"]],
+            on=self.id_column,
+            how="left"
+            )
+        
+        # df_four_wheel = df_four_wheel.dropna(subset="start_queue_position")
+        df_four_wheel["start_queue_position"] = df_four_wheel["start_queue_position"].fillna(-1)
+        df_four_wheel["start_queue_position"] = df_four_wheel["start_queue_position"].astype(int)
+
         keep_cols = df_four_wheel.columns
         
         df_two_wheel = []
@@ -3559,14 +3575,14 @@ class  YoloMicroscopicDataProcessing:
                         # Verifica algumas restrições, como se a moto considerada
                         # está "restrita" por outro veículo, só assim será aceita e 
                         # adicionada à lista "motorcycle_between_checked"
-                        check_restriction = self.FirstVehicleAhead(
+                        check_restriction = self.VehicleAhead(
                             row_motorcycle[self.id_column],
                             frame=row_motorcycle[self.frame_column],
-                            side_offset_vehicle=0,
+                            side_offset_vehicle=-0.05,
                             max_longitudinal_distance_overlap=max_longitudinal_distance_overlap)
 
                         if not check_restriction.empty:
-                            if check_restriction[self.id_column].values[0]==row[self.id_column]:
+                            if row[self.id_column] in check_restriction[self.id_column].tolist():
                                 motorcycle_between_checked.append(row_motorcycle[self.id_column])
                             elif check_restriction["distance_between_vehicles"].values[0]<=max_dist_between_vehicles:
                                 motorcycle_between_checked.append(row_motorcycle[self.id_column])
@@ -3585,6 +3601,7 @@ class  YoloMicroscopicDataProcessing:
                 df_two_wheel_row = pd.concat(df_two_wheel_row,ignore_index=True)
                 df_two_wheel_row["alignment"] = row["alignment"]
                 df_two_wheel_row["queue_position"] = 0 # dummy
+                df_two_wheel_row["start_queue_position"] = 0 # dummy
                 
                 df_two_wheel.append(df_two_wheel_row[keep_cols])
         
@@ -3605,6 +3622,7 @@ class  YoloMicroscopicDataProcessing:
                 if not row_motorcycle.empty:
                     row_motorcycle["alignment"] = row["alignment"]
                     row_motorcycle["queue_position"] = 0 # dummy
+                    row_motorcycle["start_queue_position"] = 0 # dummy
                     df_two_wheel.append(row_motorcycle[keep_cols])
 
         all_vehicles = pd.concat([df_four_wheel]+df_two_wheel,ignore_index=True)
