@@ -31,7 +31,7 @@ if __name__=="__main__":
 
     # model.df = pd.read_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv")
 
-    result,r2 = model.Hd4Analysis(model.green_open_time[0])
+    result,r2 = model.Hd4Analysis(model.green_open_time[1])
 
     print(r2[r2.columns[4:]])
 

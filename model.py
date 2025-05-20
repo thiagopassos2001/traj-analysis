@@ -3605,25 +3605,55 @@ class  YoloMicroscopicDataProcessing:
                 
                 df_two_wheel.append(df_two_wheel_row[keep_cols])
         
-        first_vehicle = df_four_wheel[df_four_wheel["queue_position"]==1]
-        for _,row in first_vehicle.iterrows():
-            all_motorcycle_ahead = self.FirstVehicleAhead(
+        first_vehicle = df_four_wheel[df_four_wheel["start_queue_position"]==1]
+        
+        temp_func = lambda row:self.FirstVehicleBehind(
                 row[self.id_column],
-                frame=start_frame+int((row[self.frame_column]-start_frame)*0.5),
-            )
-
+                row[self.frame_column],
+                side_offset_vehicle=0,
+                ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"]
+            )[self.id_column].tolist()
+        
+        for _,row_first_vehicle in first_vehicle.iterrows():
+            all_motorcycle_ahead = self.GroupVechiclesCrossingSection(
+                section=section,
+                start_frame=start_frame,
+                last_frame=row_first_vehicle[self.frame_column],
+                alignment_check=True,
+                ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"])
+            
             if not all_motorcycle_ahead.empty:
-                row_motorcycle = self.VechicleCrossingSection(
-                        vehicle_id=all_motorcycle_ahead[self.id_column].values[0],
-                        section=section,
-                    )
-                # Pode ocorrer no inicio do vídeo, 
-                # ter uma moto avançando a linha de retenção
-                if not row_motorcycle.empty:
-                    row_motorcycle["alignment"] = row["alignment"]
-                    row_motorcycle["queue_position"] = 0 # dummy
-                    row_motorcycle["start_queue_position"] = 0 # dummy
-                    df_two_wheel.append(row_motorcycle[keep_cols])
+                all_motorcycle_ahead["check_VehicleBehind"] = all_motorcycle_ahead.apply(lambda row : row_first_vehicle[self.id_column] in temp_func(row),axis=1)
+                all_motorcycle_ahead = all_motorcycle_ahead[all_motorcycle_ahead["check_VehicleBehind"]]
+
+                if not all_motorcycle_ahead.empty:
+                    all_motorcycle_ahead["alignment"] = row_first_vehicle["alignment"]
+                    all_motorcycle_ahead["queue_position"] = 0 # dummy
+                    all_motorcycle_ahead["start_queue_position"] = 0 # dummy
+                    df_two_wheel.append(all_motorcycle_ahead[keep_cols])
+
+                # max_frame = all_motorcycle_ahead[self.frame_column]
+                # alignment = all_motorcycle_ahead[all_motorcycle_ahead[self.frame_column]==max_frame]["alignment"].values[0]
+                # all_motorcycle_ahead = all_motorcycle_ahead[all_motorcycle_ahead["alignment"].isin(alignment)]
+            # 
+
+            # all_motorcycle_ahead = self.FirstVehicleAhead(
+            #     row[self.id_column],
+            #     frame=start_frame+int((row[self.frame_column]-start_frame)*0.5),
+            # )
+
+            # if not all_motorcycle_ahead.empty:
+            #     row_motorcycle = self.VechicleCrossingSection(
+            #             vehicle_id=all_motorcycle_ahead[self.id_column].values[0],
+            #             section=section,
+            #         )
+            #     # Pode ocorrer no inicio do vídeo, 
+            #     # ter uma moto avançando a linha de retenção
+            #     if not row_motorcycle.empty:
+            #         row_motorcycle["alignment"] = row["alignment"]
+            #         row_motorcycle["queue_position"] = 0 # dummy
+            #         row_motorcycle["start_queue_position"] = 0 # dummy
+            #         df_two_wheel.append(row_motorcycle[keep_cols])
 
         all_vehicles = pd.concat([df_four_wheel]+df_two_wheel,ignore_index=True)
 
