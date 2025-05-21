@@ -1095,10 +1095,12 @@ class  YoloMicroscopicDataProcessing:
             mask_ahead = mask_ahead & (df_analyzed[self.x_tail_column]>=ahead_lim_p2) & (-df_analyzed[self.vehicle_type_column].isin(ignore_vehicle_types_list))
             ahead_vehicle_group = df_analyzed[mask_ahead]
             ahead_vehicle_group['distance_between_vehicles'] = ahead_vehicle_group[self.x_tail_column] - ahead_lim_p2 - max_longitudinal_distance_overlap
-
+        
+            ahead_vehicle_group = ahead_vehicle_group.drop_duplicates(subset=self.id_column)
         else:
             ahead_vehicle_group = pd.DataFrame(columns=self.df.columns)
             ahead_vehicle_group['distance_between_vehicles'] = []
+
 
         return ahead_vehicle_group
 
@@ -2420,7 +2422,7 @@ class  YoloMicroscopicDataProcessing:
                 self.x_tail_column,])
             # Insere a informação de frame e instante de tempo para auxiliar na verificação
             df_analysis.insert(0,self.instant_column,instant)
-            df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
+            df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(round(instant%60,0))}")
             df_analysis.insert(0,self.frame_column,frame)
             return df_analysis,pd.DataFrame()
 
@@ -2448,7 +2450,7 @@ class  YoloMicroscopicDataProcessing:
                 self.x_tail_column,])
             # Insere a informação de frame e instante de tempo para auxiliar na verificação
             df_analysis.insert(0,self.instant_column,instant)
-            df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
+            df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(round(instant%60,0))}")
             df_analysis.insert(0,self.frame_column,frame)
             return df_analysis,pd.DataFrame()
 
@@ -2469,7 +2471,7 @@ class  YoloMicroscopicDataProcessing:
                 self.x_tail_column,])
             # Insere a informação de frame e instante de tempo para auxiliar na verificação
             df_analysis.insert(0,self.instant_column,instant)
-            df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
+            df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(round(instant%60,0))}")
             df_analysis.insert(0,self.frame_column,frame)
             return df_analysis,pd.DataFrame()
 
@@ -2627,10 +2629,10 @@ class  YoloMicroscopicDataProcessing:
 
         # Insere a informação de frame e instante de tempo para auxiliar na verificação
         df_analysis.insert(0,self.instant_column,instant)
-        df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
+        df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(round(instant%60,0))}")
         df_analysis.insert(0,self.frame_column,frame)
 
-        headways.insert(0,"time_mm:ss",headways["start_frame"].apply(lambda value:f"{int((value/self.fps)//60):02}:{int((value/self.fps)%60):02}"))
+        headways.insert(0,"time_mm:ss",headways["start_frame"].apply(lambda value:f"{int((value/self.fps)//60):02}:{int(round((value/self.fps),0)%60):02}"))
         
         return df_analysis,headways
     
@@ -3578,7 +3580,7 @@ class  YoloMicroscopicDataProcessing:
                         check_restriction = self.VehicleAhead(
                             row_motorcycle[self.id_column],
                             frame=row_motorcycle[self.frame_column],
-                            side_offset_vehicle=-0.05,
+                            side_offset_vehicle=0,
                             max_longitudinal_distance_overlap=max_longitudinal_distance_overlap)
 
                         if not check_restriction.empty:
@@ -3623,38 +3625,35 @@ class  YoloMicroscopicDataProcessing:
                 ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"])
             
             if not all_motorcycle_ahead.empty:
+                # Remove motos que passaram fora da projeção
                 all_motorcycle_ahead["check_VehicleBehind"] = all_motorcycle_ahead.apply(lambda row : row_first_vehicle[self.id_column] in temp_func(row),axis=1)
                 all_motorcycle_ahead = all_motorcycle_ahead[all_motorcycle_ahead["check_VehicleBehind"]]
 
                 if not all_motorcycle_ahead.empty:
+                    all_motorcycle_ahead = all_motorcycle_ahead.sort_values(by=self.frame_column,ascending=False)
                     all_motorcycle_ahead["alignment"] = row_first_vehicle["alignment"]
                     all_motorcycle_ahead["queue_position"] = 0 # dummy
                     all_motorcycle_ahead["start_queue_position"] = 0 # dummy
-                    df_two_wheel.append(all_motorcycle_ahead[keep_cols])
+                    all_motorcycle_ahead = all_motorcycle_ahead[keep_cols]
 
-                # max_frame = all_motorcycle_ahead[self.frame_column]
-                # alignment = all_motorcycle_ahead[all_motorcycle_ahead[self.frame_column]==max_frame]["alignment"].values[0]
-                # all_motorcycle_ahead = all_motorcycle_ahead[all_motorcycle_ahead["alignment"].isin(alignment)]
-            # 
+                    critical_motorcycle = all_motorcycle_ahead.iloc[:1]
+                    other_motorcycle = all_motorcycle_ahead[keep_cols].iloc[1:]
 
-            # all_motorcycle_ahead = self.FirstVehicleAhead(
-            #     row[self.id_column],
-            #     frame=start_frame+int((row[self.frame_column]-start_frame)*0.5),
-            # )
+                    df_two_wheel.append(critical_motorcycle)
 
-            # if not all_motorcycle_ahead.empty:
-            #     row_motorcycle = self.VechicleCrossingSection(
-            #             vehicle_id=all_motorcycle_ahead[self.id_column].values[0],
-            #             section=section,
-            #         )
-            #     # Pode ocorrer no inicio do vídeo, 
-            #     # ter uma moto avançando a linha de retenção
-            #     if not row_motorcycle.empty:
-            #         row_motorcycle["alignment"] = row["alignment"]
-            #         row_motorcycle["queue_position"] = 0 # dummy
-            #         row_motorcycle["start_queue_position"] = 0 # dummy
-            #         df_two_wheel.append(row_motorcycle[keep_cols])
+                    motorcycle_ahead = critical_motorcycle.copy()
 
+                    while not motorcycle_ahead.empty:
+                        motorcycle_ahead = self.FirstVehicleAhead(
+                            motorcycle_ahead[self.id_column].values[0],
+                            motorcycle_ahead[self.frame_column].values[0],
+                            side_offset_vehicle=0
+                        )
+
+                        if not motorcycle_ahead.empty:
+                            motorcycle_ahead = other_motorcycle[other_motorcycle[self.id_column]==motorcycle_ahead[self.id_column].values[0]]
+                            df_two_wheel.append(motorcycle_ahead)     
+                    
         all_vehicles = pd.concat([df_four_wheel]+df_two_wheel,ignore_index=True)
 
         # Remove veículos que passaram antes do instante inicial
