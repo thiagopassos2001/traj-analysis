@@ -2228,42 +2228,19 @@ class  YoloMicroscopicDataProcessing:
         df_analysis.insert(0,self.instant_column+"_format",f"{int(instant//60)}:{int(instant%60)}")
         df_analysis.insert(0,self.frame_column,frame)
 
+        # Headway entre---------------------------------------------------------------------------------
         last_frame = frame + int(df_analysis["hd1_time"].max()*self.fps)
-        headway_sequence = self.GroupVechiclesCrossingSection(
+        headways = self.GVCS_Type1(
             start_frame=frame,
             last_frame=last_frame,
-            alignment_check=True
         )
 
-        # Corrigir alinhamento
-        for index,row in df_analysis.iterrows():
-            alignment_set = headway_sequence[headway_sequence[self.id_column]==row["id1"]]
-            if not alignment_set.empty:
-                alignment_set = alignment_set["alignment"].values[0]
-                df_analysis.loc[index,"alignment"] = alignment_set
+        GetAlignment = lambda value:headways[headways[self.traffic_lane_column]==value]["alignment"].values[0] if len(headways[headways[self.traffic_lane_column]==value]["alignment"])>0 else -1
 
-        headway_sequence = headway_sequence.sort_values(by=["alignment",self.frame_column]).reset_index()
-        
-        for index,row in headway_sequence.iterrows():
-            if index==0:
-                headway_sequence.loc[index,"queue_position"] = 1
-            elif row["alignment"]!=headway_sequence["alignment"].values[index-1]:
-                headway_sequence.loc[index,"queue_position"] = 1
-            else:
-                headway_sequence.loc[index,"queue_position"] = headway_sequence["queue_position"].values[index-1] + 1
-        
-        hs = []
-        for index,row in df_analysis.iterrows():
-            value = headway_sequence[headway_sequence['alignment']==row["alignment"]]
-            hd = [float(instant)]+value[self.instant_column].tolist()
-            hd = [j-i for i,j in zip(hd[:-1],hd[1:])]
-            value["hd"] = hd
-            hs.append(value)
-
-            if len(hd)>0:
-                df_analysis.loc[index,"MaxHdj"] = [{int(value[value["hd"]==max(hd)][self.id_column].values[0]):round(max(hd),2)}]
-
-        df_analysis["MaxHdj"] = df_analysis["MaxHdj"].apply(lambda value:value[0] if type(value)==list else np.nan)
+        df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(GetAlignment)
+        df_analysis["MaxHdj"] = df_analysis["alignment"].apply(lambda value:headways[headways["alignment"]==value]["headway"].max() if value != -1 else -1)
+        df_analysis["idMaxHdj"] = df_analysis["MaxHdj"].apply(lambda value:headways[headways["headway"]==value][self.id_column].values[0] if value != -1 else -1)
+        # ---------------------------------------------------------------------------------
 
         # Motobox modo Gambiarra
         df_analysis["MB"] = 0 if "SemMotobox" in self.processed_file else 1

@@ -56,30 +56,30 @@ if __name__=="__main__":
     df = pd.concat(df,ignore_index=True)
     df.to_excel("data/summary/hd1_21_05_25.xlsx",index=False)
 
-    """output_folder = "data/hd4"
-    run = Run()
-    run.WorkflowPattern(
-        root_path=root_path,
-        output_folder=output_folder,
-        prefix="Hd4_",
-        func=RunHd4Analysis)
+    # output_folder = "data/hd4"
+    # run = Run()
+    # run.WorkflowPattern(
+    #     root_path=root_path,
+    #     output_folder=output_folder,
+    #     prefix="Hd4_",
+    #     func=RunHd4Analysis)
     
-    # Concatenar resumo
-    df = []
-    all_files = os.listdir(output_folder)
-    for f in all_files:
-        df_ = pd.read_csv(os.path.join(output_folder,f))
-        df.append(df_)
-    df = pd.concat(df,ignore_index=True)
-    df.to_excel("data/summary/hd4_21_05_25.xlsx",index=False)
+    # # Concatenar resumo
+    # df = []
+    # all_files = os.listdir(output_folder)
+    # for f in all_files:
+    #     df_ = pd.read_csv(os.path.join(output_folder,f))
+    #     df.append(df_)
+    # df = pd.concat(df,ignore_index=True)
+    # df.to_excel("data/summary/hd4_21_05_25.xlsx",index=False)
 
-    df = []
-    all_files = os.listdir("data/hd_check")
-    for f in all_files:
-        df_ = pd.read_csv(os.path.join("data/hd_check",f))
-        df.append(df_)
-    df = pd.concat(df,ignore_index=True)
-    df.to_excel("data/summary/hd_check_21_05_25.xlsx",index=False)"""
+    # df = []
+    # all_files = os.listdir("data/hd_check")
+    # for f in all_files:
+    #     df_ = pd.read_csv(os.path.join("data/hd_check",f))
+    #     df.append(df_)
+    # df = pd.concat(df,ignore_index=True)
+    # df.to_excel("data/summary/hd_check_21_05_25.xlsx",index=False)
 
 stop_timer = timeit.default_timer()
 count_timer = stop_timer - start_timer
