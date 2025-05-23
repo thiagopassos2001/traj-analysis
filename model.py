@@ -2234,7 +2234,7 @@ class  YoloMicroscopicDataProcessing:
             start_frame=frame,
             last_frame=last_frame,
         )
-
+        # print(frame,last_frame,headways)
         GetAlignment = lambda value:headways[headways[self.traffic_lane_column]==value]["alignment"].values[0] if len(headways[headways[self.traffic_lane_column]==value]["alignment"])>0 else -1
 
         df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(GetAlignment)
@@ -2340,9 +2340,10 @@ class  YoloMicroscopicDataProcessing:
         dbmb = dist_between_motorcycle_behind
 
         # Ajuste do instante de tempo, tomando o mais próximo
-        instant = self.df[self.instant_column].values[(self.df[self.instant_column]-instant).abs().argsort()[0]]
+        # instant = self.df[self.instant_column].values[(self.df[self.instant_column]-instant).abs().argsort()[0]]
         # Frame de referência (preferencia)
-        frame = self.df[self.df[self.instant_column]==instant][self.frame_column].values[0]
+        # frame = self.df[self.df[self.instant_column]==instant][self.frame_column].values[0]
+        frame = int(instant*self.fps)
 
         # Veiculos por fila
         # Mantém só first_group e agrupa por faixa
@@ -2580,6 +2581,7 @@ class  YoloMicroscopicDataProcessing:
             start_frame=frame,
             last_frame=last_frame,
         )
+        # print(frame,last_frame,headways)
         df_analysis["alignment"] = df_analysis["id4"].apply(lambda value:headways[headways[self.id_column]==value]["alignment"].values[0])
         df_analysis["MaxHdj"] = df_analysis["alignment"].apply(lambda value:headways[headways["alignment"]==value]["headway"].max())
         df_analysis["idMaxHdj"] = df_analysis["MaxHdj"].apply(lambda value:headways[headways["headway"]==value][self.id_column].values[0])
@@ -3649,7 +3651,7 @@ class  YoloMicroscopicDataProcessing:
             else:
                 all_vehicles.loc[index,"queue_position"] = all_vehicles["queue_position"].values[index-1] + 1
         
-        start_instant = int(start_frame/self.fps)
+        start_instant = int(round(start_frame/self.fps,0))
         headways = []
         alignment = all_vehicles["alignment"].unique().tolist()
         for al in alignment:
