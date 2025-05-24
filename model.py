@@ -2249,7 +2249,7 @@ class  YoloMicroscopicDataProcessing:
             return idMaxHd,MaxHd
 
         df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(GetAlignment)
-        df_analysis[["idMaxHdj","MaxHdj"]] = df_analysis.apply(lambda row:GetMaxHdFromQueuePos(headways,row["alignment"],1) if row["alignment"] != -1 else -1,axis=1,result_type="expand")
+        df_analysis[["idMaxHdj","MaxHdj"]] = df_analysis.apply(lambda row:GetMaxHdFromQueuePos(headways,row["alignment"],1) if row["alignment"] != -1 else (-1,-1),axis=1,result_type="expand")
     
         # ---------------------------------------------------------------------------------
 
@@ -2607,7 +2607,7 @@ class  YoloMicroscopicDataProcessing:
             return idMaxHd,MaxHd
 
         df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(GetAlignment)
-        df_analysis[["idMaxHdj","MaxHdj"]] = df_analysis.apply(lambda row:GetMaxHdFromQueuePos(headways,row["alignment"],4) if row["alignment"] != -1 else -1,axis=1,result_type="expand")
+        df_analysis[["idMaxHdj","MaxHdj"]] = df_analysis.apply(lambda row:GetMaxHdFromQueuePos(headways,row["alignment"],4) if row["alignment"] != -1 else (-1,-1),axis=1,result_type="expand")
         # ---------------------------------------------------------------------------------
 
         # Unir com os reports
@@ -3657,13 +3657,13 @@ class  YoloMicroscopicDataProcessing:
                     other_motorcycle = all_motorcycle_ahead[-all_motorcycle_ahead[self.id_column].isin(critical_motorcycle[self.id_column].tolist())][keep_cols]
                     
                     df_two_wheel.append(critical_motorcycle)
-
                     motorcycle_ahead = critical_motorcycle.copy()
-                    delta_sec = 0
+                    
                     while not motorcycle_ahead.empty:
+                        delta_frame = int(round((motorcycle_ahead[self.frame_column].values[0]-start_frame)*0.75))
                         motorcycle_ahead = self.FirstVehicleAhead(
                             motorcycle_ahead[self.id_column].values[0],
-                            int(motorcycle_ahead[self.frame_column].values[0]-self.fps*delta_sec),
+                            int(motorcycle_ahead[self.frame_column].values[0]-delta_frame),
                             side_offset_vehicle=0,
                         )
 
