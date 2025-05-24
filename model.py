@@ -2234,12 +2234,23 @@ class  YoloMicroscopicDataProcessing:
             start_frame=frame,
             last_frame=last_frame,
         )
-        # print(frame,last_frame,headways)
+
         GetAlignment = lambda value:headways[headways[self.traffic_lane_column]==value]["alignment"].values[0] if len(headways[headways[self.traffic_lane_column]==value]["alignment"])>0 else -1
+        def GetMaxHdFromQueuePos(headways,alignment,qpo):
+            mask = (headways["alignment"]==alignment) & (headways["queue_position_origin"]==qpo)
+            ref_queue_position = headways[mask]["queue_position"].values[0]
+            
+            mask = (headways["alignment"]==alignment) & (headways["queue_position"]<=ref_queue_position)
+            headways = headways[mask]
+            
+            MaxHd = headways["headway"].max()
+            idMaxHd = headways[headways["headway"]==MaxHd][self.id_column].values[0]
+            
+            return idMaxHd,MaxHd
 
         df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(GetAlignment)
-        df_analysis["MaxHdj"] = df_analysis["alignment"].apply(lambda value:headways[headways["alignment"]==value]["headway"].max() if value != -1 else -1)
-        df_analysis["idMaxHdj"] = df_analysis["MaxHdj"].apply(lambda value:headways[headways["headway"]==value][self.id_column].values[0] if value != -1 else -1)
+        df_analysis[["idMaxHdj","MaxHdj"]] = df_analysis.apply(lambda row:GetMaxHdFromQueuePos(headways,row["alignment"],1) if row["alignment"] != -1 else -1,axis=1,result_type="expand")
+    
         # ---------------------------------------------------------------------------------
 
         # Motobox modo Gambiarra
@@ -2581,10 +2592,22 @@ class  YoloMicroscopicDataProcessing:
             start_frame=frame,
             last_frame=last_frame,
         )
-        # print(frame,last_frame,headways)
-        df_analysis["alignment"] = df_analysis["id4"].apply(lambda value:headways[headways[self.id_column]==value]["alignment"].values[0])
-        df_analysis["MaxHdj"] = df_analysis["alignment"].apply(lambda value:headways[headways["alignment"]==value]["headway"].max())
-        df_analysis["idMaxHdj"] = df_analysis["MaxHdj"].apply(lambda value:headways[headways["headway"]==value][self.id_column].values[0])
+
+        GetAlignment = lambda value:headways[headways[self.traffic_lane_column]==value]["alignment"].values[0] if len(headways[headways[self.traffic_lane_column]==value]["alignment"])>0 else -1
+        def GetMaxHdFromQueuePos(headways,alignment,qpo):
+            mask = (headways["alignment"]==alignment) & (headways["queue_position_origin"]==qpo)
+            ref_queue_position = headways[mask]["queue_position"].values[0]
+            
+            mask = (headways["alignment"]==alignment) & (headways["queue_position"]<=ref_queue_position)
+            headways = headways[mask]
+            
+            MaxHd = headways["headway"].max()
+            idMaxHd = headways[headways["headway"]==MaxHd][self.id_column].values[0]
+            
+            return idMaxHd,MaxHd
+
+        df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(GetAlignment)
+        df_analysis[["idMaxHdj","MaxHdj"]] = df_analysis.apply(lambda row:GetMaxHdFromQueuePos(headways,row["alignment"],4) if row["alignment"] != -1 else -1,axis=1,result_type="expand")
         # ---------------------------------------------------------------------------------
 
         # Unir com os reports
@@ -3390,6 +3413,7 @@ class  YoloMicroscopicDataProcessing:
         alignment_check=True,
         max_longitudinal_distance_overlap=0.3,
         ignore_vehicle_types_list=[],
+        set_side_offset_vehicle=None,
         **kwargs
         ):
 
@@ -3443,7 +3467,9 @@ class  YoloMicroscopicDataProcessing:
                     df_dict["alignment"].append(count_alignment)
                     df_dict["queue_position"].append(count_pos)
 
-                    side_offset_vehicle = 0.1 if row[self.vehicle_type_column] in ["Moto","Bicicleta","Pedestre"] else -0.2
+                    side_offset_vehicle = 0.15 if row[self.vehicle_type_column] in ["Moto","Bicicleta","Pedestre"] else -0.3
+                    if set_side_offset_vehicle!=None:
+                            side_offset_vehicle = set_side_offset_vehicle
                     vehicle_behind = self.FirstVehicleBehind(
                         id_vehicle=row[self.id_column],
                         frame=row[self.frame_column],
@@ -3463,7 +3489,9 @@ class  YoloMicroscopicDataProcessing:
                         # print(row[self.id_column],vehicle_behind[self.id_column].values[0],mask_vehicle_behind.any(),count_alignment)
 
                         frame = df[mask_vehicle_behind][self.frame_column].values[0]
-                        side_offset_vehicle = 0.1 if vehicle_behind[self.vehicle_type_column].values[0] in ["Moto","Bicicleta","Pedestre"] else -0.2
+                        side_offset_vehicle = 0.15 if vehicle_behind[self.vehicle_type_column].values[0] in ["Moto","Bicicleta","Pedestre"] else -0.3
+                        if set_side_offset_vehicle!=None:
+                            side_offset_vehicle = set_side_offset_vehicle
 
                         vehicle_behind = self.FirstVehicleBehind(
                             id_vehicle=vehicle_behind[self.id_column].values[0],
@@ -3496,7 +3524,8 @@ class  YoloMicroscopicDataProcessing:
         start_frame=None,
         last_frame=None,
         max_dist_between_vehicles=1.5,
-        max_longitudinal_distance_overlap=0.3):
+        max_longitudinal_distance_overlap=0.3,
+        set_side_offset_vehicle=None):
         """
         Do a something
         """
@@ -3512,7 +3541,8 @@ class  YoloMicroscopicDataProcessing:
             start_frame=start_frame,
             last_frame=last_frame,
             alignment_check=True,
-            ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"])
+            ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"],
+            set_side_offset_vehicle=-0.75)
         
         df_four_wheel_first_frame = self.QueueDetector(frame=start_frame)
         df_four_wheel_first_frame = df_four_wheel_first_frame.rename(columns={
@@ -3591,7 +3621,7 @@ class  YoloMicroscopicDataProcessing:
         temp_func = lambda row:self.FirstVehicleBehind(
                 row[self.id_column],
                 row[self.frame_column],
-                side_offset_vehicle=0,
+                side_offset_vehicle=0.15,
                 ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"]
             )[self.id_column].tolist()
         
@@ -3606,27 +3636,35 @@ class  YoloMicroscopicDataProcessing:
             if not all_motorcycle_ahead.empty:
                 # Remove motos que passaram fora da projeção
                 all_motorcycle_ahead["check_VehicleBehind"] = all_motorcycle_ahead.apply(lambda row : row_first_vehicle[self.id_column] in temp_func(row),axis=1)
-                all_motorcycle_ahead = all_motorcycle_ahead[all_motorcycle_ahead["check_VehicleBehind"]]
-
-                if not all_motorcycle_ahead.empty:
+                mask_filtered = all_motorcycle_ahead["check_VehicleBehind"]
+                
+                # print(all_motorcycle_ahead["id"].tolist())
+                # print(all_motorcycle_ahead[mask_filtered]["id"].tolist())
+                if not all_motorcycle_ahead[mask_filtered].empty:
                     all_motorcycle_ahead = all_motorcycle_ahead.sort_values(by=self.frame_column,ascending=False)
                     all_motorcycle_ahead["alignment"] = row_first_vehicle["alignment"]
                     all_motorcycle_ahead["queue_position"] = 0 # dummy
                     all_motorcycle_ahead["start_queue_position"] = 0 # dummy
+                    mask_filtered = all_motorcycle_ahead["check_VehicleBehind"]
                     all_motorcycle_ahead = all_motorcycle_ahead[keep_cols]
 
-                    critical_motorcycle = all_motorcycle_ahead.iloc[:1]
-                    other_motorcycle = all_motorcycle_ahead[keep_cols].iloc[1:]
+                    # Motos na projeção (somente para a primeira moto crítica)
+                    all_motorcycle_ahead_filtered = all_motorcycle_ahead[mask_filtered]
 
+                    # Moto critica (somente na projeção)
+                    critical_motorcycle = all_motorcycle_ahead_filtered.iloc[:1]
+                    # Todas as outras (inclusive fora da projeção)
+                    other_motorcycle = all_motorcycle_ahead[-all_motorcycle_ahead[self.id_column].isin(critical_motorcycle[self.id_column].tolist())][keep_cols]
+                    
                     df_two_wheel.append(critical_motorcycle)
 
                     motorcycle_ahead = critical_motorcycle.copy()
-
+                    delta_sec = 0
                     while not motorcycle_ahead.empty:
                         motorcycle_ahead = self.FirstVehicleAhead(
                             motorcycle_ahead[self.id_column].values[0],
-                            motorcycle_ahead[self.frame_column].values[0],
-                            side_offset_vehicle=0
+                            int(motorcycle_ahead[self.frame_column].values[0]-self.fps*delta_sec),
+                            side_offset_vehicle=0,
                         )
 
                         if not motorcycle_ahead.empty:
