@@ -25,16 +25,14 @@ if __name__=="__main__":
     if mode=="test":
         model = YoloMicroscopicDataProcessing()
         model.ImportFromJSON(
-            "data/json/BM_x_PA_D2_0002.json",post_processing=model.PostProcessing1)
+            "data/json/BM_x_PA_D2_0004.json",post_processing=model.PostProcessing1)
         # Suavizar  (1a vez)
         # model_smoothed = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
         # model_smoothed.to_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv",index=False)
 
         # model.df = pd.read_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv")
-        result,_ = model.Hd4Analysis(model.green_open_time[1])
-        print(result) # [result.columns[-2:]]
-        # print(model.df[model.df["id"]==398].tail(50)[["id","vehicle_type","instant"]])
-        # print(model.FirstVehicleAhead(402,14989))
+        result = model.Hd1Analysis(model.green_open_time[3])
+        print(result) # [result.columns[4:]]
 
     if mode=="run":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"

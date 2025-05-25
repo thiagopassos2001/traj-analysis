@@ -2235,7 +2235,14 @@ class  YoloMicroscopicDataProcessing:
             last_frame=last_frame,
         )
 
-        GetAlignment = lambda value:headways[headways[self.traffic_lane_column]==value]["alignment"].values[0] if len(headways[headways[self.traffic_lane_column]==value]["alignment"])>0 else -1
+        def GetAlignment(headways,traffic_lane):
+            headways = headways[headways["queue_position_origin"]!=0]
+            headways = headways[headways[self.traffic_lane_column]==traffic_lane]["alignment"]
+            if headways.empty:
+                return -1
+            
+            return headways.values[0]
+
         def GetMaxHdFromQueuePos(headways,alignment,qpo):
             mask = (headways["alignment"]==alignment) & (headways["queue_position_origin"]==qpo)
             ref_queue_position = headways[mask]["queue_position"].values[0]
@@ -2248,7 +2255,7 @@ class  YoloMicroscopicDataProcessing:
             
             return idMaxHd,MaxHd
 
-        df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(GetAlignment)
+        df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(lambda value:GetAlignment(headways,value))
         df_analysis[["idMaxHdj","MaxHdj"]] = df_analysis.apply(lambda row:GetMaxHdFromQueuePos(headways,row["alignment"],1) if row["alignment"] != -1 else (-1,-1),axis=1,result_type="expand")
     
         # ---------------------------------------------------------------------------------
@@ -2593,7 +2600,14 @@ class  YoloMicroscopicDataProcessing:
             last_frame=last_frame,
         )
 
-        GetAlignment = lambda value:headways[headways[self.traffic_lane_column]==value]["alignment"].values[0] if len(headways[headways[self.traffic_lane_column]==value]["alignment"])>0 else -1
+        def GetAlignment(headways,traffic_lane):
+            headways = headways[headways["queue_position_origin"]!=0]
+            headways = headways[headways[self.traffic_lane_column]==traffic_lane]["alignment"]
+            if headways.empty:
+                return -1
+            
+            return headways.values[0]
+
         def GetMaxHdFromQueuePos(headways,alignment,qpo):
             mask = (headways["alignment"]==alignment) & (headways["queue_position_origin"]==qpo)
             ref_queue_position = headways[mask]["queue_position"].values[0]
@@ -2606,7 +2620,7 @@ class  YoloMicroscopicDataProcessing:
             
             return idMaxHd,MaxHd
 
-        df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(GetAlignment)
+        df_analysis["alignment"] = df_analysis[self.traffic_lane_column].apply(lambda value:GetAlignment(headways,value))
         df_analysis[["idMaxHdj","MaxHdj"]] = df_analysis.apply(lambda row:GetMaxHdFromQueuePos(headways,row["alignment"],4) if row["alignment"] != -1 else (-1,-1),axis=1,result_type="expand")
         # ---------------------------------------------------------------------------------
 
