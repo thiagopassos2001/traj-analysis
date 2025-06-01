@@ -21,18 +21,19 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "run"
+    mode = "test"
     if mode=="test":
+        RunDataProcessingFromParameterType1(
+            "data/json/C_x_13M_SemMotobox_D5_0008.json",
+            force_processing=True,
+            )
+
         model = YoloMicroscopicDataProcessing()
         model.ImportFromJSON(
-            "data/json/BM_x_PA_D2_0004.json",post_processing=model.PostProcessing1)
-        # Suavizar  (1a vez)
-        # model_smoothed = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
-        # model_smoothed.to_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv",index=False)
-
-        # model.df = pd.read_csv("tests\Smoothing_C_x_13M_SemMotobox_D5_0001.csv")
-        result = model.Hd1Analysis(model.green_open_time[3])
-        print(result) # [result.columns[4:]]
+            "data/json/C_x_13M_SemMotobox_D5_0008.json",
+            post_processing=model.PostProcessing1)
+        
+        # print(model.df[(model.df["id"]==494) & (model.df["instant_acc"].isna())])
 
     if mode=="run":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"

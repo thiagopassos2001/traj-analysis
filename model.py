@@ -3777,6 +3777,14 @@ class  YoloMicroscopicDataProcessing:
         df_analyzed['yaw_rate'] = np.gradient(df_analyzed['rad'],df_analyzed[self.instant_column],edge_order=2)
 
         return df_analyzed
+    
+    def do_a_something(
+        self,
+        id_vehicle
+    ):
+        
+        
+        return "200"
 
 # Fluxo de execução para trabalhar com múltiplos arquivos
 # Copiar o padrão de alterar
@@ -3926,14 +3934,14 @@ def RunHd4Analysis(file_path):
 
     return result
 
-def RunDataProcessingFromParameterType1(file_path):
+def RunDataProcessingFromParameterType1(file_path,force_processing=False):
     start_timer = timeit.default_timer()
     print(f"Processando... {file_path}")
 
     model = YoloMicroscopicDataProcessing()
     model.ImportFromJSON(file_path)
 
-    if not os.path.exists(model.processed_file):
+    if not os.path.exists(model.processed_file) or force_processing:
 
         # Importa do arquivo bruto
         model.df = pd.read_csv(model.raw_file)
@@ -4004,15 +4012,19 @@ def RunDataProcessingFromParameterType1(file_path):
         # Cálculo do centroide x e y
         model.df[model.y_centroid_column] = (model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]*0.5)
         model.df[model.x_centroid_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]*0.5
-        
+
         # Ajuste do número da faixa
         model.df = gpd.GeoDataFrame(model.df,
                                     geometry=gpd.points_from_xy(model.df[model.x_centroid_column],model.df[model.y_centroid_column]),
                                     crs="EPSG:31984")
 
-        model.df = model.df.overlay(model.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union')
+        model.df = model.df.overlay(model.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union',)
+        # Remover casos duplicados em "tl_polygon"
+        model.df = model.df.drop_duplicates(subset=[model.id_column,model.frame_column],keep="first")
+        # Atribui a faixa ajustada
         model.df[model.traffic_lane_column] = model.df["tl_polygon"]
         model.df = pd.DataFrame(model.df.drop(columns=["tl_polygon","geometry"]))
+
 
         # Cálculo de posições estrátégicas longitudinais o veículo
         # Fundo do veículo
@@ -4035,8 +4047,9 @@ def RunDataProcessingFromParameterType1(file_path):
         df_new = model.GhostFramesGenerator(model.df[model.id_column].unique(),step=1)
         model.df = pd.concat([model.df,df_new],ignore_index=True)
         model.df = model.df.sort_values(by=[model.frame_column,model.traffic_lane_column,model.x_centroid_column])
-
+        
         model.df.to_csv(model.processed_file,index=False)
+        
         print("Fim da execussão",model.processed_file)
         
         stop_timer = timeit.default_timer()
