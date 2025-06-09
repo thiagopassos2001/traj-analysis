@@ -21,19 +21,19 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "test"
+    mode = "processing"
+    
     if mode=="test":
-        RunDataProcessingFromParameterType1(
-            "data/json/C_x_13M_SemMotobox_D5_0008.json",
-            force_processing=True,
-            )
+        pass
 
-        model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON(
-            "data/json/C_x_13M_SemMotobox_D5_0008.json",
-            post_processing=model.PostProcessing1)
-        
-        # print(model.df[(model.df["id"]==494) & (model.df["instant_acc"].isna())])
+    if mode=="processing":
+        root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis\data\json"
+        all_files = os.listdir(root_path)
+        for f in all_files:
+            RunDataProcessingFromParameterType1(
+                os.path.join(root_path,f),
+                force_processing=True,
+                )
 
     if mode=="run":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis"
