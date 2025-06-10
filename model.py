@@ -1176,7 +1176,6 @@ class  YoloMicroscopicDataProcessing:
         max_longitudinal_distance_overlap:float=0.30,
         report_null_value:bool=False,
         ignore_vehicle_types_list:list=[]):
-        print(id_vehicle)
 
         behind_vehicle_group = self.VehicleBehind(
             id_vehicle=id_vehicle,
@@ -2280,6 +2279,7 @@ class  YoloMicroscopicDataProcessing:
             frame,
             max_long_dist_overlap=0.3,
             side_offset_vehicle=0.15,
+            project_verification=False,
             double_check=False):
         """
         Retorna os ids das motocicletas entre os veículos líder e seguidor no frame indicado
@@ -2295,7 +2295,7 @@ class  YoloMicroscopicDataProcessing:
         # Verifica se ambos os ids estão no frame
         if not (df_analysis[self.id_column] == id_vehicle_follower).any():
             raise ValueError(f"Id={id_vehicle_follower} não está no frame {frame}")
-        if not (df_analysis[self.id_column] == id_vehicle_leader).any():
+        if not (df_analysis[self.id_column] == id_vehicle_leader).any() and not project_verification:
             raise ValueError(f"Id={id_vehicle_leader} não está no frame {frame}")
         
         # Verifica se os ids "id_vehicle_follower" e "id_vehicle_leader" são "não motos"
@@ -2314,11 +2314,16 @@ class  YoloMicroscopicDataProcessing:
                 frame,
                 side_offset_vehicle=side_offset_vehicle,
                 max_longitudinal_distance_overlap=max_long_dist_overlap,
-                ignore_vehicle_types_list=self.vehicle_category_list['four_wheel']+self.vehicle_category_list['walk'])
+                ignore_vehicle_types_list=self.vehicle_category_list['four_wheel']+self.vehicle_category_list['walk'],
+                project_verification=project_verification)
+        print(id_vehicle_follower,len(motorcycle_between))
         
         # Restringe os veículos ao para-choque traseiro + sobreposição máxima
         # Próximo ao líder, o limite é o para-choque traseiro + sobreposição longitudinal
-        lim_leader = df_analysis[df_analysis[self.id_column]==id_vehicle_leader][self.x_tail_column].values[0]
+        if not (df_analysis[self.id_column] == id_vehicle_leader).any() and project_verification:
+            lim_leader = 10e10
+        else:
+            lim_leader = df_analysis[df_analysis[self.id_column]==id_vehicle_leader][self.x_tail_column].values[0]
         lim_leader = lim_leader + max_long_dist_overlap
 
         # Restringe a quantidade de motocicletas, baseado na parte da frente dela
@@ -3787,7 +3792,7 @@ class  YoloMicroscopicDataProcessing:
         self,
         start_frame,
         last_frame,
-        frequency_check_motorcycle=1/30,
+        step_check_motorcycle=3,
         ):
         
         # Filtra os limites temporais
@@ -3895,7 +3900,7 @@ class  YoloMicroscopicDataProcessing:
             self.id_column:self.id_column+"_leader",
             self.vehicle_type_column:self.vehicle_type_column+"_leader",
             })
-        df_analyzed[self.frame_column+"_crossing_leader"] = df_analyzed[self.frame_column+"_crossing_leader"].fillna(-1).astype(int)
+        df_analyzed[self.frame_column+"_crossing_leader"] = df_analyzed[self.frame_column+"_crossing_leader"].fillna(start_frame).astype(int)
 
         # Validação
         df_analyzed["check_ahead_behind"] = df_analyzed.apply(lambda row:self.FirstVehicleBehind(
@@ -3907,15 +3912,50 @@ class  YoloMicroscopicDataProcessing:
         )[self.id_column].values[0] if row[self.id_column+"_leader"]!=-1 else -1,axis=1)
         df_analyzed["check_ahead_behind"] = df_analyzed.apply(lambda row:True if (row["check_ahead_behind"]==row[self.id_column+"_follower"] or row["check_ahead_behind"]==-1) else False,axis=1)
 
+        min_count = 15
+        min_count = int(min_count/step_check_motorcycle)
+        for index,row in df_analyzed.iterrows():
+            df_motorcycle_row = []
+            if row[self.id_column+"_leader"]==-1:
+                for f in range(row[self.frame_column+"_crossing_leader"],row[self.frame_column+"_crossing_follower"],step_check_motorcycle):
+                    motorcycle_frame = self.VehicleAhead(
+                        row[self.id_column+"_follower"],
+                        frame=f,
+                        max_longitudinal_distance_overlap=0.3,
+                        side_offset_vehicle=0.15,
+                        ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"],
+                        project_verification=True)
+                    
+                    if not motorcycle_frame.empty:
+                        df_motorcycle_row.append(motorcycle_frame[[self.id_column,self.frame_column]])
+            else:
+                for f in range(row[self.frame_column+"_crossing_leader"],row[self.frame_column+"_crossing_follower"],step_check_motorcycle):
+                    motorcycle_frame = self.MotorcycleBetweenVehicleLF(
+                        row[self.id_column+"_leader"],
+                        row[self.id_column+"_follower"],
+                        frame=f,
+                        max_long_dist_overlap=0.3,
+                        side_offset_vehicle=0.15,
+                        project_verification=True)
+                    
+                    if not motorcycle_frame.empty:
+                        df_motorcycle_row.append(motorcycle_frame[[self.id_column,self.frame_column]])
+            
+            if len(df_motorcycle_row)>0:
+                df_motorcycle_row = pd.concat(df_motorcycle_row,ignore_index=True)
+                df_motorcycle_row = df_motorcycle_row.groupby(self.id_column).count().reset_index()
+                df_motorcycle_row = df_motorcycle_row[df_motorcycle_row[self.frame_column]>=min_count]
+
+                if not df_motorcycle_row.empty:
+                    df_analyzed.loc[index,"idQmevj"] = ",".join([str(i) for i in df_motorcycle_row[self.id_column].tolist()])
+                    df_analyzed.loc[index,"Qmevj"] = len(df_motorcycle_row)
         
         return df_analyzed[[
             "check_ahead_behind",
-            self.frame_column+"_first_follower",
-            self.frame_column+"_crossing_follower",
             "id_follower",
-            "position_queue_first_follower",
-            self.id_column+"_leader",
-            self.frame_column+"_crossing_leader"]]
+            "id_leader",
+            "idQmevj",
+            "Qmevj"]]
 
 
     def do_a_something(
