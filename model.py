@@ -1151,7 +1151,7 @@ class  YoloMicroscopicDataProcessing:
             side_offset_vehicle=side_offset_vehicle,
             max_longitudinal_distance_overlap=max_longitudinal_distance_overlap,
             ignore_vehicle_types_list=ignore_vehicle_types_list,
-             project_verification=project_verification
+            project_verification=project_verification
         )
 
         if max_dist_between_vehicles!=None:
@@ -1174,7 +1174,9 @@ class  YoloMicroscopicDataProcessing:
         frame:int,
         side_offset_vehicle:float=None,
         max_longitudinal_distance_overlap:float=0.30,
+        report_null_value:bool=False,
         ignore_vehicle_types_list:list=[]):
+        print(id_vehicle)
 
         behind_vehicle_group = self.VehicleBehind(
             id_vehicle=id_vehicle,
@@ -1186,6 +1188,9 @@ class  YoloMicroscopicDataProcessing:
 
         pos_behind_vehicle = behind_vehicle_group['distance_between_vehicles'].min()
         behind_vehicle = behind_vehicle_group[behind_vehicle_group['distance_between_vehicles']==pos_behind_vehicle]
+
+        if report_null_value and len(behind_vehicle)==0:
+            behind_vehicle[self.id_column] = [-1]
 
         # Para evitar erros com veículos "dupicados"
         if len(behind_vehicle)>1:
@@ -3778,11 +3783,145 @@ class  YoloMicroscopicDataProcessing:
 
         return df_analyzed
     
+    def DischargeHeadwayMotorcycleAnalysis(
+        self,
+        start_frame,
+        last_frame,
+        frequency_check_motorcycle=1/30,
+        ):
+        
+        # Filtra os limites temporais
+        df_analyzed = self.df[self.df[self.frame_column].between(start_frame,last_frame)]
+        # Mantém veículos de 4 ou mais roda
+        df_analyzed = df_analyzed[df_analyzed[self.vehicle_type_column].isin(self.vehicle_category_list["four_wheel"])]
+        # Mantém o instante inicial que surgiu
+        df_analyzed = df_analyzed.groupby(self.id_column).first().reset_index()
+        # Mantem algumas colunas
+        df_analyzed = df_analyzed[[
+            self.frame_column,
+            self.instant_column,
+            self.traffic_lane_column,
+            self.id_column,
+            self.vehicle_type_column,
+            self.x_centroid_column
+                ]].sort_values(by=[self.traffic_lane_column,self.frame_column])
+        
+        # Renomear para destacar o seguidor
+        df_analyzed = df_analyzed.rename(columns={
+            self.frame_column:self.frame_column+"_first_follower",
+            self.instant_column:self.instant_column+"_first_follower",
+            self.traffic_lane_column:self.traffic_lane_column+"_first_follower",
+            self.x_centroid_column:self.x_centroid_column+"_first_follower",
+            })
+        
+        # Instantes dos veículos cruzando a faixa
+        df_row_follower_crossing = []
+        for index,row in df_analyzed.iterrows():
+            row_follower_crossing = self.VechicleCrossingFromEndMWA(row[self.id_column])
+            df_row_follower_crossing.append(row_follower_crossing)
+        df_row_follower_crossing = pd.concat(df_row_follower_crossing,ignore_index=True)
+
+        # Merge
+        df_analyzed = df_analyzed.merge(
+            df_row_follower_crossing[[
+                self.frame_column,
+                self.instant_column,
+                self.traffic_lane_column,
+                self.id_column,
+            ]],
+            on=self.id_column,
+            how="left"
+        )
+
+        # Renomear para destacar o seguidor
+        df_analyzed = df_analyzed.rename(columns={
+            self.frame_column:self.frame_column+"_crossing_follower",
+            self.instant_column:self.instant_column+"_crossing_follower",
+            self.traffic_lane_column:self.traffic_lane_column+"_crossing_follower",
+            self.id_column:self.id_column+"_follower",
+            self.vehicle_type_column:self.vehicle_type_column+"_follower",
+            })
+
+        # Posição ao longo da fila
+        df_analyzed = df_analyzed.sort_values(
+            by=[
+                self.traffic_lane_column+"_first_follower",
+                self.frame_column+"_first_follower",
+                self.x_centroid_column+"_first_follower"
+                ],
+            ascending=[
+                True,
+                True,
+                False]
+        )
+        traffic_lane = 0
+        count_position = 1
+        for index,row in df_analyzed.iterrows():
+            if row[self.traffic_lane_column+"_first_follower"]!=traffic_lane:
+                count_position = 1
+            else:
+                count_position = count_position + 1
+            df_analyzed.loc[index,"position_queue_first_follower"] = count_position
+            traffic_lane = row[self.traffic_lane_column+"_first_follower"]
+        df_analyzed["position_queue_first_follower"] = df_analyzed["position_queue_first_follower"].astype(int)
+
+        # Veiculo lider no first_frame
+        df_analyzed[self.id_column] = df_analyzed.apply(lambda row:self.FirstVehicleAhead(
+            row[self.id_column+"_follower"],
+            row[self.frame_column+"_first_follower"],
+            side_offset_vehicle=0.15,
+            ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"],
+            report_null_value=True
+        )[self.id_column].values[0],axis=1)
+
+        # Instante em que o líder cruzou a faixa
+        # Merge
+        df_analyzed = df_analyzed.merge(
+            df_row_follower_crossing[[
+                self.frame_column,
+                self.instant_column,
+                self.traffic_lane_column,
+                self.id_column,
+            ]],
+            on=self.id_column,
+            how="left",
+        )
+
+        # Renomear para destacar o seguidor
+        df_analyzed = df_analyzed.rename(columns={
+            self.frame_column:self.frame_column+"_crossing_leader",
+            self.instant_column:self.instant_column+"_crossing_leader",
+            self.traffic_lane_column:self.traffic_lane_column+"_crossing_leader",
+            self.id_column:self.id_column+"_leader",
+            self.vehicle_type_column:self.vehicle_type_column+"_leader",
+            })
+        df_analyzed[self.frame_column+"_crossing_leader"] = df_analyzed[self.frame_column+"_crossing_leader"].fillna(-1).astype(int)
+
+        # Validação
+        df_analyzed["check_ahead_behind"] = df_analyzed.apply(lambda row:self.FirstVehicleBehind(
+            row[self.id_column+"_leader"],
+            row[self.frame_column+"_crossing_leader"],
+            side_offset_vehicle=0.15,
+            ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"],
+            report_null_value=True
+        )[self.id_column].values[0] if row[self.id_column+"_leader"]!=-1 else -1,axis=1)
+        df_analyzed["check_ahead_behind"] = df_analyzed.apply(lambda row:True if (row["check_ahead_behind"]==row[self.id_column+"_follower"] or row["check_ahead_behind"]==-1) else False,axis=1)
+
+        
+        return df_analyzed[[
+            "check_ahead_behind",
+            self.frame_column+"_first_follower",
+            self.frame_column+"_crossing_follower",
+            "id_follower",
+            "position_queue_first_follower",
+            self.id_column+"_leader",
+            self.frame_column+"_crossing_leader"]]
+
+
     def do_a_something(
         self,
         id_vehicle
     ):
-        
         
         return "200"
 
