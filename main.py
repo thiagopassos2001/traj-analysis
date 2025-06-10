@@ -10,7 +10,7 @@ warnings.filterwarnings('ignore')
 import timeit
 
 start_timer = timeit.default_timer()
-# Notas
+# Nota
 
 # # Suavização
 # model = YoloMicroscopicDataProcessing()
