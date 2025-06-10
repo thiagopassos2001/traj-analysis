@@ -3901,24 +3901,26 @@ class  YoloMicroscopicDataProcessing:
             self.vehicle_type_column:self.vehicle_type_column+"_leader",
             })
         df_analyzed[self.frame_column+"_crossing_leader"] = df_analyzed[self.frame_column+"_crossing_leader"].fillna(start_frame).astype(int)
+        df_analyzed[self.instant_column+"_crossing_leader"] = df_analyzed[self.instant_column+"_crossing_leader"].fillna(start_frame/self.fps).astype(float)
 
         # Validação
-        df_analyzed["check_ahead_behind"] = df_analyzed.apply(lambda row:self.FirstVehicleBehind(
+        df_analyzed["valid"] = df_analyzed.apply(lambda row:self.FirstVehicleBehind(
             row[self.id_column+"_leader"],
             row[self.frame_column+"_crossing_leader"],
             side_offset_vehicle=0.15,
             ignore_vehicle_types_list=self.vehicle_category_list["two_wheel"],
             report_null_value=True
         )[self.id_column].values[0] if row[self.id_column+"_leader"]!=-1 else -1,axis=1)
-        df_analyzed["check_ahead_behind"] = df_analyzed.apply(lambda row:True if (row["check_ahead_behind"]==row[self.id_column+"_follower"] or row["check_ahead_behind"]==-1) else False,axis=1)
+        df_analyzed["valid"] = df_analyzed.apply(lambda row:True if (row["valid"]==row[self.id_column+"_follower"] or row["valid"]==-1) else False,axis=1)
 
         min_count = 15
         min_count = int(min_count/step_check_motorcycle)
         for index,row in df_analyzed.iterrows():
-            df_motorcycle_row = []
+            df_motorcycle_between_frame_row = []
+            df_motorcycle_virtual_lane_frame_row = []
             if row[self.id_column+"_leader"]==-1:
                 for f in range(row[self.frame_column+"_crossing_leader"],row[self.frame_column+"_crossing_follower"],step_check_motorcycle):
-                    motorcycle_frame = self.VehicleAhead(
+                    motorcycle_between_frame = self.VehicleAhead(
                         row[self.id_column+"_follower"],
                         frame=f,
                         max_longitudinal_distance_overlap=0.3,
@@ -3926,11 +3928,23 @@ class  YoloMicroscopicDataProcessing:
                         ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"],
                         project_verification=True)
                     
-                    if not motorcycle_frame.empty:
-                        df_motorcycle_row.append(motorcycle_frame[[self.id_column,self.frame_column]])
+                    motorcycle_virtual_lane_frame = self.VehicleAhead(
+                        row[self.id_column+"_follower"],
+                        frame=f,
+                        max_longitudinal_distance_overlap=0.3,
+                        side_offset_vehicle=1,
+                        ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"],
+                        project_verification=True)
+                    # Remove quem estiver entre veículos
+                    motorcycle_virtual_lane_frame = motorcycle_virtual_lane_frame[-motorcycle_virtual_lane_frame[self.id_column].isin(motorcycle_between_frame[self.id_column].tolist())]
+                    
+                    if not motorcycle_between_frame.empty:
+                        df_motorcycle_between_frame_row.append(motorcycle_between_frame[[self.id_column,self.frame_column]])
+                    if not motorcycle_virtual_lane_frame.empty:
+                        df_motorcycle_virtual_lane_frame_row.append(motorcycle_virtual_lane_frame[[self.id_column,self.frame_column]])
             else:
                 for f in range(row[self.frame_column+"_crossing_leader"],row[self.frame_column+"_crossing_follower"],step_check_motorcycle):
-                    motorcycle_frame = self.MotorcycleBetweenVehicleLF(
+                    motorcycle_between_frame = self.MotorcycleBetweenVehicleLF(
                         row[self.id_column+"_leader"],
                         row[self.id_column+"_follower"],
                         frame=f,
@@ -3938,25 +3952,48 @@ class  YoloMicroscopicDataProcessing:
                         side_offset_vehicle=0.15,
                         project_verification=True)
                     
-                    if not motorcycle_frame.empty:
-                        df_motorcycle_row.append(motorcycle_frame[[self.id_column,self.frame_column]])
+                    motorcycle_virtual_lane_frame = self.MotorcycleBetweenVehicleLF(
+                        row[self.id_column+"_leader"],
+                        row[self.id_column+"_follower"],
+                        frame=f,
+                        max_long_dist_overlap=0.3,
+                        side_offset_vehicle=1,
+                        project_verification=True)
+                    # Remove quem estiver entre veículos
+                    motorcycle_virtual_lane_frame = motorcycle_virtual_lane_frame[-motorcycle_virtual_lane_frame[self.id_column].isin(motorcycle_between_frame[self.id_column].tolist())]
+                    
+                    if not motorcycle_between_frame.empty:
+                        df_motorcycle_between_frame_row.append(motorcycle_between_frame[[self.id_column,self.frame_column]])
+                    if not motorcycle_virtual_lane_frame.empty:
+                        df_motorcycle_virtual_lane_frame_row.append(motorcycle_virtual_lane_frame[[self.id_column,self.frame_column]])
             
-            if len(df_motorcycle_row)>0:
-                df_motorcycle_row = pd.concat(df_motorcycle_row,ignore_index=True)
-                df_motorcycle_row = df_motorcycle_row.groupby(self.id_column).count().reset_index()
-                df_motorcycle_row = df_motorcycle_row[df_motorcycle_row[self.frame_column]>=min_count]
+            if len(df_motorcycle_between_frame_row)>0:
+                df_motorcycle_between_frame_row = pd.concat(df_motorcycle_between_frame_row,ignore_index=True)
+                df_motorcycle_between_frame_row = df_motorcycle_between_frame_row.groupby(self.id_column).count().reset_index()
+                df_motorcycle_between_frame_row = df_motorcycle_between_frame_row[df_motorcycle_between_frame_row[self.frame_column]>=min_count]
 
-                if not df_motorcycle_row.empty:
-                    df_analyzed.loc[index,"idQmevj"] = ",".join([str(i) for i in df_motorcycle_row[self.id_column].tolist()])
-                    df_analyzed.loc[index,"Qmevj"] = len(df_motorcycle_row)
+                if not df_motorcycle_between_frame_row.empty:
+                    df_analyzed.loc[index,"idQmevj"] = "["+",".join([str(i) for i in df_motorcycle_between_frame_row[self.id_column].tolist()])+"]"
+                    df_analyzed.loc[index,"Qmevj"] = len(df_motorcycle_between_frame_row)
+            
+            if len(df_motorcycle_virtual_lane_frame_row)>0:
+                df_motorcycle_virtual_lane_frame_row = pd.concat(df_motorcycle_virtual_lane_frame_row,ignore_index=True)
+                df_motorcycle_virtual_lane_frame_row = df_motorcycle_virtual_lane_frame_row.groupby(self.id_column).count().reset_index()
+                df_motorcycle_virtual_lane_frame_row = df_motorcycle_virtual_lane_frame_row[df_motorcycle_virtual_lane_frame_row[self.frame_column]>=min_count]
+                
+                # Remove quem foi considerado entre veículos
+                if len(df_motorcycle_between_frame_row)>0:
+                    df_motorcycle_virtual_lane_frame_row = df_motorcycle_virtual_lane_frame_row[-df_motorcycle_virtual_lane_frame_row[self.id_column].isin(df_motorcycle_between_frame_row[self.id_column].tolist())]
+
+                if not df_motorcycle_virtual_lane_frame_row.empty:
+                    df_analyzed.loc[index,"idQmcvj"] = "["+",".join([str(i) for i in df_motorcycle_virtual_lane_frame_row[self.id_column].tolist()])+"]"
+                    df_analyzed.loc[index,"Qmcvj"] = len(df_motorcycle_virtual_lane_frame_row)
         
-        return df_analyzed[[
-            "check_ahead_behind",
-            "id_follower",
-            "id_leader",
-            "idQmevj",
-            "Qmevj"]]
+        df_analyzed["valid"] = df_analyzed.apply(lambda row:row["valid"] if row[self.id_column+"_leader"]!=-1 else (row["valid"] if row["position_queue_first_follower"]==1 else False),axis=1)
+        df_analyzed["headway"] = df_analyzed[self.instant_column+"_crossing_follower"] - df_analyzed[self.instant_column+"_crossing_leader"]
+        df_analyzed.insert(0,"time_mm:ss",f"{int((start_frame/self.fps)//60):02}:{int(round((start_frame/self.fps),0)%60):02}")
 
+        return df_analyzed
 
     def do_a_something(
         self,

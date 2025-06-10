@@ -191,15 +191,20 @@ if __name__=="__main__":
         model = YoloMicroscopicDataProcessing()
         model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D5_0001.json",post_processing=model.PostProcessing1)
 
-        start_instant = model.green_open_time[0]
-        last_instant = model.green_open_time[1]
+        df = []
+        for i in range(len(model.green_open_time)-1):
+            start_instant = model.green_open_time[i]
+            last_instant = model.green_open_time[i+1]
 
-        result = model.DischargeHeadwayMotorcycleAnalysis(
-            start_frame=int(model.fps*start_instant),
-            last_frame=int(model.fps*last_instant)
-        )
-
-        print(result)
+            result = model.DischargeHeadwayMotorcycleAnalysis(
+                start_frame=int(model.fps*start_instant),
+                last_frame=int(model.fps*last_instant)
+            )
+            df.append(result)
+        
+        df = pd.concat(df,ignore_index=True)
+        df = df.drop_duplicates(subset="id_follower",keep="last")
+        df.to_excel("Headway_Sat_C_x_13M_SemMotobox_D5_0001_Teste2.xlsx",index=False)
 
         # hd = pd.DataFrame()
 
