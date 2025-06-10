@@ -3913,9 +3913,12 @@ class  YoloMicroscopicDataProcessing:
         )[self.id_column].values[0] if row[self.id_column+"_leader"]!=-1 else -1,axis=1)
         df_analyzed["valid"] = df_analyzed.apply(lambda row:True if (row["valid"]==row[self.id_column+"_follower"] or row["valid"]==-1) else False,axis=1)
 
-        min_count = 15
-        min_count = int(min_count/step_check_motorcycle)
+        df_analyzed["headway"] = df_analyzed[self.instant_column+"_crossing_follower"] - df_analyzed[self.instant_column+"_crossing_leader"]
+
         for index,row in df_analyzed.iterrows():
+            min_count = int(row["headway"]*self.fps)
+            min_count = int(min_count/step_check_motorcycle)
+
             df_motorcycle_between_frame_row = []
             df_motorcycle_virtual_lane_frame_row = []
             if row[self.id_column+"_leader"]==-1:
@@ -3967,30 +3970,43 @@ class  YoloMicroscopicDataProcessing:
                     if not motorcycle_virtual_lane_frame.empty:
                         df_motorcycle_virtual_lane_frame_row.append(motorcycle_virtual_lane_frame[[self.id_column,self.frame_column]])
             
-            if len(df_motorcycle_between_frame_row)>0:
-                df_motorcycle_between_frame_row = pd.concat(df_motorcycle_between_frame_row,ignore_index=True)
-                df_motorcycle_between_frame_row = df_motorcycle_between_frame_row.groupby(self.id_column).count().reset_index()
-                df_motorcycle_between_frame_row = df_motorcycle_between_frame_row[df_motorcycle_between_frame_row[self.frame_column]>=min_count]
+            id_motorcycle = []
 
-                if not df_motorcycle_between_frame_row.empty:
-                    df_analyzed.loc[index,"idQmevj"] = "["+",".join([str(i) for i in df_motorcycle_between_frame_row[self.id_column].tolist()])+"]"
-                    df_analyzed.loc[index,"Qmevj"] = len(df_motorcycle_between_frame_row)
+            df_motorcycle_between_frame_row = pd.concat(df_motorcycle_between_frame_row+[pd.DataFrame(columns=[
+                self.id_column,self.frame_column
+            ])],ignore_index=True)
+            df_motorcycle_between_frame_row = df_motorcycle_between_frame_row.groupby(self.id_column).count().reset_index()
+            df_motorcycle_between_frame_row["perc"] = df_motorcycle_between_frame_row[self.frame_column]/min_count
+            id_motorcycle = df_motorcycle_between_frame_row[self.id_column].tolist()
+ 
+            df_motorcycle_virtual_lane_frame_row = pd.concat(df_motorcycle_virtual_lane_frame_row+[pd.DataFrame(columns=[
+                self.id_column,self.frame_column
+            ])],ignore_index=True)
+            df_motorcycle_virtual_lane_frame_row = df_motorcycle_virtual_lane_frame_row.groupby(self.id_column).count().reset_index()
+            df_motorcycle_virtual_lane_frame_row["perc"] = df_motorcycle_virtual_lane_frame_row[self.frame_column]/min_count
+            id_motorcycle = df_motorcycle_virtual_lane_frame_row[self.id_column].tolist()
             
-            if len(df_motorcycle_virtual_lane_frame_row)>0:
-                df_motorcycle_virtual_lane_frame_row = pd.concat(df_motorcycle_virtual_lane_frame_row,ignore_index=True)
-                df_motorcycle_virtual_lane_frame_row = df_motorcycle_virtual_lane_frame_row.groupby(self.id_column).count().reset_index()
-                df_motorcycle_virtual_lane_frame_row = df_motorcycle_virtual_lane_frame_row[df_motorcycle_virtual_lane_frame_row[self.frame_column]>=min_count]
-                
-                # Remove quem foi considerado entre veículos
-                if len(df_motorcycle_between_frame_row)>0:
-                    df_motorcycle_virtual_lane_frame_row = df_motorcycle_virtual_lane_frame_row[-df_motorcycle_virtual_lane_frame_row[self.id_column].isin(df_motorcycle_between_frame_row[self.id_column].tolist())]
+            idQmev = []
+            idQmcv = []
+            for m in pd.Series(id_motorcycle).unique().tolist():
+                perc_between = df_motorcycle_between_frame_row[df_motorcycle_between_frame_row[self.id_column]==m]["perc"]
+                perc_virtual_lane = df_motorcycle_virtual_lane_frame_row[df_motorcycle_virtual_lane_frame_row[self.id_column]==m]["perc"]
 
-                if not df_motorcycle_virtual_lane_frame_row.empty:
-                    df_analyzed.loc[index,"idQmcvj"] = "["+",".join([str(i) for i in df_motorcycle_virtual_lane_frame_row[self.id_column].tolist()])+"]"
-                    df_analyzed.loc[index,"Qmcvj"] = len(df_motorcycle_virtual_lane_frame_row)
-        
+                perc_between = 0 if len(perc_between)==0 else perc_between.values[0]
+                perc_virtual_lane = 0 if len(perc_virtual_lane)==0 else perc_virtual_lane.values[0]
+
+                if perc_virtual_lane>0.5:
+                    if (perc_between>0.3) or (perc_between>=perc_virtual_lane):
+                        idQmev.append(m)
+                    else:
+                        idQmcv.append(m)
+            
+            df_analyzed.loc[index,"idQmev"] = "["+",".join([str(i) for i in idQmev])+"]"
+            df_analyzed.loc[index,"Qmev"] = len(idQmev)
+            df_analyzed.loc[index,"idQmcv"] = "["+",".join([str(i) for i in idQmcv])+"]"
+            df_analyzed.loc[index,"Qmcv"] = len(idQmcv)
+
         df_analyzed["valid"] = df_analyzed.apply(lambda row:row["valid"] if row[self.id_column+"_leader"]!=-1 else (row["valid"] if row["position_queue_first_follower"]==1 else False),axis=1)
-        df_analyzed["headway"] = df_analyzed[self.instant_column+"_crossing_follower"] - df_analyzed[self.instant_column+"_crossing_leader"]
         df_analyzed.insert(0,"time_mm:ss",f"{int((start_frame/self.fps)//60):02}:{int(round((start_frame/self.fps),0)%60):02}")
 
         return df_analyzed
