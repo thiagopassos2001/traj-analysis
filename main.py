@@ -192,6 +192,7 @@ if __name__=="__main__":
         model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D5_0001.json",post_processing=model.PostProcessing1)
 
         df = []
+        df1 = []
         for i in range(len(model.green_open_time)-1):
             start_instant = model.green_open_time[i]
             last_instant = model.green_open_time[i+1]
@@ -200,19 +201,20 @@ if __name__=="__main__":
                 start_frame=int(model.fps*start_instant),
                 last_frame=int(model.fps*last_instant)
             )
+            result1 = model.GVCS_Type1(
+                start_frame=int(model.fps*start_instant),
+                last_frame=int(model.fps*last_instant),
+            )
             df.append(result)
+            df1.append(result1)
         
         df = pd.concat(df,ignore_index=True)
         df = df.drop_duplicates(subset="id_follower",keep="last")
         df.to_excel("Headway_Sat_C_x_13M_SemMotobox_D5_0001_Teste2.xlsx",index=False)
 
-        # hd = pd.DataFrame()
-
-        # for i in range(len(model.green_open_time)-1):
-        #     print(model.green_open_time[i],model.green_open_time[i+1], 'Inicio')
-        #     hd_i = DischargeHeadwayMotorcycleAnalysis(model.green_open_time[i],model.green_open_time[i+1],frequency_check_motorcycle=1/10)
-        #     hd = pd.concat([hd,hd_i],ignore_index=True)
-        #     print(model.green_open_time[i],model.green_open_time[i+1], 'Fim')
+        df1 = pd.concat(df1,ignore_index=True)
+        df1 = df1.drop_duplicates(subset="id",keep="last")
+        df1.to_excel("Headway_Geral_C_x_13M_SemMotobox_D5_0001_Teste2.xlsx",index=False)
 
     if mode=="processing":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis\data\json"

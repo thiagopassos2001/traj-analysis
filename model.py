@@ -2316,7 +2316,6 @@ class  YoloMicroscopicDataProcessing:
                 max_longitudinal_distance_overlap=max_long_dist_overlap,
                 ignore_vehicle_types_list=self.vehicle_category_list['four_wheel']+self.vehicle_category_list['walk'],
                 project_verification=project_verification)
-        print(id_vehicle_follower,len(motorcycle_between))
         
         # Restringe os veículos ao para-choque traseiro + sobreposição máxima
         # Próximo ao líder, o limite é o para-choque traseiro + sobreposição longitudinal
@@ -3962,7 +3961,7 @@ class  YoloMicroscopicDataProcessing:
                         max_long_dist_overlap=0.3,
                         side_offset_vehicle=1,
                         project_verification=True)
-                    # Remove quem estiver entre veículos
+                    # Remove quem estiver entre veículos do correor virtual
                     motorcycle_virtual_lane_frame = motorcycle_virtual_lane_frame[-motorcycle_virtual_lane_frame[self.id_column].isin(motorcycle_between_frame[self.id_column].tolist())]
                     
                     if not motorcycle_between_frame.empty:
@@ -3995,8 +3994,9 @@ class  YoloMicroscopicDataProcessing:
                 perc_between = 0 if len(perc_between)==0 else perc_between.values[0]
                 perc_virtual_lane = 0 if len(perc_virtual_lane)==0 else perc_virtual_lane.values[0]
 
-                if perc_virtual_lane>0.5:
-                    if (perc_between>0.3) or (perc_between>=perc_virtual_lane):
+                print(row[self.id_column+"_leader"],row[self.id_column+"_follower"],m,perc_between,perc_virtual_lane)
+                if (perc_virtual_lane+perc_between)>=0.5:
+                    if (perc_between>=0.3) or (perc_between>=perc_virtual_lane):
                         idQmev.append(m)
                     else:
                         idQmcv.append(m)
