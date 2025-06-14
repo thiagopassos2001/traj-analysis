@@ -2670,7 +2670,7 @@ class  YoloMicroscopicDataProcessing:
             dist_between_motorcycle_vehicle_2:float=4.5,    # dbmv2
             dist_between_motorcycle_motorcycle:float=1.5,   # dbmm
             max_long_dist_overlap:float=0.30,               # mldo
-            side_offset_vehicle=0.3):          
+            side_offset_vehicle=0.15):          
 
         """
         Retorna a classe da motocicleta naquele frame
@@ -3934,7 +3934,7 @@ class  YoloMicroscopicDataProcessing:
                         row[self.id_column+"_follower"],
                         frame=f,
                         max_longitudinal_distance_overlap=0.3,
-                        side_offset_vehicle=1,
+                        side_offset_vehicle=0.70,
                         ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"],
                         project_verification=True)
                     # Remove quem estiver entre veículos
@@ -3959,7 +3959,7 @@ class  YoloMicroscopicDataProcessing:
                         row[self.id_column+"_follower"],
                         frame=f,
                         max_long_dist_overlap=0.3,
-                        side_offset_vehicle=1,
+                        side_offset_vehicle=0.70,
                         project_verification=True)
                     # Remove quem estiver entre veículos do correor virtual
                     motorcycle_virtual_lane_frame = motorcycle_virtual_lane_frame[-motorcycle_virtual_lane_frame[self.id_column].isin(motorcycle_between_frame[self.id_column].tolist())]
@@ -4001,13 +4001,39 @@ class  YoloMicroscopicDataProcessing:
                     else:
                         idQmcv.append(m)
             
-            df_analyzed.loc[index,"idQmev"] = "["+",".join([str(i) for i in idQmev])+"]"
+            df_analyzed.loc[index,"idQmev"] = eval("["+",".join([str(i) for i in idQmev])+"]")
             df_analyzed.loc[index,"Qmev"] = len(idQmev)
-            df_analyzed.loc[index,"idQmcv"] = "["+",".join([str(i) for i in idQmcv])+"]"
+            df_analyzed.loc[index,"idQmcv"] = eval("["+",".join([str(i) for i in idQmcv])+"]")
             df_analyzed.loc[index,"Qmcv"] = len(idQmcv)
 
         df_analyzed["valid"] = df_analyzed.apply(lambda row:row["valid"] if row[self.id_column+"_leader"]!=-1 else (row["valid"] if row["position_queue_first_follower"]==1 else False),axis=1)
         df_analyzed.insert(0,"time_mm:ss",f"{int((start_frame/self.fps)//60):02}:{int(round((start_frame/self.fps),0)%60):02}")
+
+        # Headway com moto
+        for index,row in df_analyzed.iterrows():
+            headway_array = {
+                "id":[],
+                "crossing":[],
+            }
+
+            headway_array["id"].append(row[self.id_column+"_leader"])
+            headway_array["id"].append(row[self.id_column+"_follower"])
+            headway_array["crossing"].append(row[self.id_column+"_crossing_leader"])
+            headway_array["crossing"].append(row[self.id_column+"_crossing_follower"])
+
+            for id_motorcycle in row[idQmev]:
+                headway_array["id"].append(id_motorcycle)
+                headway_array["crossing"].append(row[self.id_column+"_crossing_leader"])
+
+            headway_array = pd.DataFrame(headway_array).sort_values("crossing")
+            headway_array["headway"] = [headway_array["headway"].iloc[0]] + headway_array["crossing"].iloc[1:].tolist()
+            headway_array["headway"] = headway_array["crossing"] - headway_array["headway"]
+
+            max_headway = headway_array["headway"].max()
+            id_max_headway = headway_array[headway_array["headway"]==max_headway]["id"].values[0]
+
+            df_analyzed.loc[index,"idMaxHd"] = id_max_headway
+            df_analyzed.loc[index,"idMax"] = max_headway
 
         return df_analyzed
 
