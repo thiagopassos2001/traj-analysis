@@ -2674,7 +2674,7 @@ class  YoloMicroscopicDataProcessing:
             dist_between_motorcycle_vehicle_2:float=4.5,    # dbmv2
             dist_between_motorcycle_motorcycle:float=1.5,   # dbmm
             max_long_dist_overlap:float=0.30,               # mldo
-            side_offset_vehicle=0.15):          
+            side_offset_vehicle=0.15):         
 
         """
         Retorna a classe da motocicleta naquele frame

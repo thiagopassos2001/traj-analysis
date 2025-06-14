@@ -46,11 +46,11 @@ if __name__=="__main__":
         
         df = pd.concat(df,ignore_index=True)
         df = df.drop_duplicates(subset="id_follower",keep="last")
-        df.to_excel("tests/Headway_Sat_C_x_13M_D5_0004.xlsx",index=False)
+        df.to_excel("Headway_Sat_C_x_13M_SemMotobox_D5_0001_Teste2.xlsx",index=False)
 
         df1 = pd.concat(df1,ignore_index=True)
         df1 = df1.drop_duplicates(subset="id",keep="last")
-        df1.to_excel("tests/Headway_Geral_C_x_13M_D5_0004.xlsx",index=False)
+        df1.to_excel("Headway_Geral_C_x_13M_SemMotobox_D5_0001_Teste2.xlsx",index=False)
 
     if mode=="processing":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis\data\json"
