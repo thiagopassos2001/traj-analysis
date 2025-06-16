@@ -21,8 +21,10 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "test"
-    
+    mode = "test2"
+
+    if mode=="tes2":
+        pass
     if mode=="test":
         model = YoloMicroscopicDataProcessing()
         model.ImportFromJSON("data/json/C_x_13M_D5_0004.json",post_processing=model.PostProcessing1)
