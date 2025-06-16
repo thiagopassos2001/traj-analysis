@@ -23,8 +23,33 @@ start_timer = timeit.default_timer()
 if __name__=="__main__":
     mode = "test2"
 
-    if mode=="tes2":
-        pass
+    if mode=="test2":
+        root_path = "data_fa"
+        os.chdir(root_path)
+
+        file_list = os.listdir("raw")
+        valid_id = ["_".join(i.split("_")[:-2]) for i in file_list]
+
+        df_parameter = pd.read_excel("Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
+        df_parameter = df_parameter[df_parameter["id_voo"].isin(valid_id)]
+
+        for index,row in df_parameter.iterrows():
+            limite_faixa = eval(row["limite_faixa"])
+            ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
+            limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
+            limite_faixa.append(ll)
+            print(limite_faixa)
+
+            RunDataProcessingFromSheetType1(
+                raw_file_path=os.path.join(f"raw/{row['id_voo']+"_transformed_rastreio.csv"}"),
+                file_name=row["id_voo"],
+                mpp=float(row["mpp"]),
+                flip_h=True if row["fluxo"]!="→" else False,
+                virtual_lane_lim=limite_faixa,
+                image_reference=row["img_ref"]
+
+            )
+
     if mode=="test":
         model = YoloMicroscopicDataProcessing()
         model.ImportFromJSON("data/json/C_x_13M_D5_0004.json",post_processing=model.PostProcessing1)

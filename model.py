@@ -4354,6 +4354,173 @@ def RunDataProcessingFromParameterType1(file_path,force_processing=False):
     else:
         print(model.processed_file, "já processado!")
 
+def RunDataProcessingFromSheetType1(
+    raw_file_path,
+    file_name,
+    mpp,
+    virtual_lane_lim,
+    image_reference,
+    fps=30,
+    flip_h=False,
+    flip_v=False,
+    video_heigth=1080,
+    video_width=1920,
+    motobox_start_section=0,
+    motobox_end_section=0,
+    width_virtual_lane=1,
+    green_open_time=[0],
+    parameter_file="",
+    force_processing=False):
+    start_timer = timeit.default_timer()
+
+    print(f"Processando... {raw_file_path}")
+
+    model = YoloMicroscopicDataProcessing()
+    
+    model.mpp = mpp
+    model.flip_h = flip_h
+    model.flip_v = flip_v
+    model.virtual_lane_lim = virtual_lane_lim
+
+    traffic_lane_polygon_coords = [
+                model.TrafficLaneCoordsFromLimits(i,j)
+                for i,j in zip(model.virtual_lane_lim[:-1],model.virtual_lane_lim[1:])]
+    num_traffic_lanes = len(traffic_lane_polygon_coords)
+    id_traffic_lane = [str(i) for i in  range(1,num_traffic_lanes+1)]
+    model.traffic_lane_polygon = dict(zip(["id","coords"],[id_traffic_lane,traffic_lane_polygon_coords]))
+    print(model.traffic_lane_polygon["coords"][0])
+    model.traffic_lane_polygon = gpd.GeoDataFrame(
+            model.traffic_lane_polygon,
+            geometry=[shapely.Polygon(i) for i in model.traffic_lane_polygon["coords"]],
+            crs="EPSG:31984")
+    model.traffic_lane_polygon["geometry"] = model.traffic_lane_polygon["geometry"].apply(model.ScalePxToMeterPolygon)
+
+    # Atribuir dimensões do vídeo
+    model.video_heigth = video_heigth
+    model.video_width = video_width
+    
+    # Características do motobox (obsoleto)
+    model.motobox_start_section = motobox_start_section
+    model.motobox_end_section = motobox_end_section
+
+    # Largura teórica do corredor virtual
+    model.width_virtual_lane = width_virtual_lane
+
+    # Instantes em que o verde abre
+    model.green_open_time = green_open_time
+
+    # Nomes dos arquivos
+    model.parameter_file = ""
+    model.image_reference = image_reference
+
+    model.raw_file = f"raw/{os.path.basename(raw_file_path)}"
+    model.processed_file = f"processed/{file_name}.csv"
+
+    if not os.path.exists(model.processed_file) or force_processing:
+
+        # Importa do arquivo bruto
+        model.df = pd.read_csv(model.raw_file)
+
+        # Renomear colunas
+        old_pattern = False
+        # Ajusta os nomes das colunas para o padrão
+        model.df = model.df.rename(columns={
+            'id':model.id_column,
+            'tipo':model.vehicle_type_column,
+            'conf':model.conf_YOLO_column,
+            'faixa':model.traffic_lane_column,
+            'instante':model.instant_column,
+        })
+        
+        model.df[model.frame_column] = model.df[model.frame_column].astype(int)
+        model.df[model.id_column] = model.df[model.id_column].astype(int)
+        model.df[model.vehicle_type_column] = model.df[model.vehicle_type_column].astype("category")
+        model.df[model.conf_YOLO_column] = model.df[model.conf_YOLO_column].astype(float)
+        model.df[model.traffic_lane_column] = model.df[model.traffic_lane_column].astype(int)
+        model.df[model.instant_column] = model.df[model.instant_column].astype(float)
+
+        model.df = model.df.rename(columns={
+            'x1':model.p1_x_bb_column,
+            'y1':model.p1_y_bb_column,
+            'x2':model.p2_x_bb_column,
+            'y2':model.p2_y_bb_column,
+        })
+
+        # Ajuste do tipo de veículo
+        for id in model.df[model.id_column].unique():
+            model.df.loc[model.df[model.id_column]==id,model.vehicle_type_column] = model.FindVehicleType(id)
+
+        # Converter variáveis de posição e distancia de pixels para metro
+        model.df[model.p1_x_bb_column] = model.mpp*model.df[model.p1_x_bb_column]
+        model.df[model.p1_y_bb_column] = model.mpp*model.df[model.p1_y_bb_column]
+        model.df[model.p2_x_bb_column] = model.mpp*model.df[model.p2_x_bb_column]
+        model.df[model.p2_y_bb_column] = model.mpp*model.df[model.p2_y_bb_column]
+        
+        # Cálculo das dimensões do veículo
+        model.df[model.vehicle_length_column] = model.df[model.p2_x_bb_column]-model.df[model.p1_x_bb_column]
+        model.df[model.vehicle_width_column] = model.df[model.p2_y_bb_column]-model.df[model.p1_y_bb_column]
+
+        # Rotação horizontal se necessário
+        if model.flip_h:
+            # Coordenada horizontal à esquerda
+            model.df[model.p1_x_bb_column] = model.video_width - model.df[model.p1_x_bb_column] - model.df[model.vehicle_length_column]
+            # Recalculo do ponto à direita
+            model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
+        
+        if model.flip_v:
+            # Coordenada horizontal à esquerda
+            model.df[model.p1_y_bb_column] = model.video_heigth - model.df[model.p1_y_bb_column] - model.df[model.vehicle_width_column]
+            # Recalculo do ponto à direita
+            model.df[model.p2_y_bb_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]
+        
+        # Cálculo do centroide x e y
+        model.df[model.y_centroid_column] = (model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]*0.5)
+        model.df[model.x_centroid_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]*0.5
+
+        # Ajuste do número da faixa
+        model.df = gpd.GeoDataFrame(model.df,
+                                    geometry=gpd.points_from_xy(model.df[model.x_centroid_column],model.df[model.y_centroid_column]),
+                                    crs="EPSG:31984")
+
+        model.df = model.df.overlay(model.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union',)
+        # Remover casos duplicados em "tl_polygon"
+        model.df = model.df.drop_duplicates(subset=[model.id_column,model.frame_column],keep="first")
+        # Atribui a faixa ajustada
+        model.df[model.traffic_lane_column] = model.df["tl_polygon"]
+        model.df = pd.DataFrame(model.df.drop(columns=["tl_polygon","geometry"]))
+
+        # Cálculo de posições estrátégicas longitudinais o veículo
+        # Fundo do veículo
+        model.df[model.x_tail_column] = model.df[model.p1_x_bb_column]
+        # Frente do veículo
+        model.df[model.x_head_column] = model.df[model.p2_x_bb_column]
+
+        # Arredonda o tempo
+        model.df[model.instant_column] = model.df[model.instant_column].round(4)
+        # Id geral, combinando id e tempo
+        model.df[model.id_column] = model.df[model.id_column].astype(int)
+        model.df[model.frame_column] = model.df[model.frame_column].astype(int)
+        model.df[model.global_id_column] = model.df[model.id_column].astype(str) + '@' + model.df[model.frame_column].astype(str)
+
+        # Remove valores com baixa incidência
+        model.RemoveLowIncidence()
+        # Calcula da velocidade e aceleração
+        model.SpeedAndAccDetector()
+        # Criar frames interpolados
+        df_new = model.GhostFramesGenerator(model.df[model.id_column].unique(),step=1)
+        model.df = pd.concat([model.df,df_new],ignore_index=True)
+        model.df = model.df.sort_values(by=[model.frame_column,model.traffic_lane_column,model.x_centroid_column])
+        
+        model.df.to_csv(model.processed_file,index=False)
+        
+        print("Fim da execussão",model.processed_file)
+        
+        stop_timer = timeit.default_timer()
+        count_timer = stop_timer - start_timer
+        print(f"\tDuração: {int(count_timer//60)}min:{int(count_timer%60)}s")
+    else:
+        print(model.processed_file, "já processado!")
+
 def InsideCircle(x_center,y_center,x_object,y_object,radius):
     '''
     Determina se o ponto (x_object,y_object) está contido dentro do círculo cujo
