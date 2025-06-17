@@ -21,7 +21,7 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "test"
+    mode = "run_sat_headway"
 
     if mode=="test3":
         root_path = "data_ignore"
@@ -40,13 +40,15 @@ if __name__=="__main__":
 
         df_parameter = pd.read_excel("data/Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
         df_parameter = df_parameter[df_parameter["id_voo"].isin(valid_id)]
-        df_parameter = df_parameter[df_parameter["id_voo"]=="79_B_2"]
+        df_parameter = df_parameter[df_parameter["id_voo"]=="32_B_5"]
 
         for index,row in df_parameter.iterrows():
             limite_faixa = eval(row["limite_faixa"])
-            ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
-            limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
-            limite_faixa.append(ll)
+            # ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
+            # limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
+            # limite_faixa.append(ll)
+            limite_faixa = [[[0,i[0][-1]]]+i+[[1920,i[-1][-1]]] for i in limite_faixa]
+            print(limite_faixa)
 
             RunDataProcessingFromSheetType1(
                 raw_file_path=os.path.join(f"data/raw/{row['id_voo']+"_transformed_rastreio.csv"}"),
@@ -64,35 +66,56 @@ if __name__=="__main__":
         model.ImportFromJSON("data/json/32_A_5.json",post_processing=model.PostProcessing1)
         print(model.df)
 
-    if mode=="test":
-        model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON("data/json/C_x_13M_D5_0004.json",post_processing=model.PostProcessing1)
+    if mode=="run_sat_headway":
+        root_file = "data/json"
+        all_files = os.listdir(root_file)
 
-        df = []
-        df1 = []
-        range_instant = model.green_open_time+[model.df[model.instant_column].max()]
-        for i in range(len(range_instant)-1):
-            start_instant = range_instant[i]
-            last_instant = range_instant[i+1]
+        for f in all_files:
+            model = YoloMicroscopicDataProcessing()
+            model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D4_0004.json",post_processing=model.PostProcessing1)
 
-            result = model.DischargeHeadwayMotorcycleAnalysis(
-                start_frame=int(model.fps*start_instant),
-                last_frame=int(model.fps*last_instant)
-            )
-            # result1 = model.GVCS_Type1(
-            #     start_frame=int(model.fps*start_instant),
-            #     last_frame=int(model.fps*last_instant),
-            # )
-            df.append(result)
-            # df1.append(result1)
-        
-        df = pd.concat(df,ignore_index=True)
-        df = df.drop_duplicates(subset="id_follower",keep="last")
-        df.to_excel("tests/Headway_Sat_C_x_13M_D5_0004.xlsx",index=False)
+            df = []
+            df1 = []
+            range_instant = model.green_open_time+[model.df[model.instant_column].max()]
+            for i in range(len(range_instant)-1):
+                start_instant = range_instant[i]
+                last_instant = range_instant[i+1]
 
-        # df1 = pd.concat(df1,ignore_index=True)
-        # df1 = df1.drop_duplicates(subset="id",keep="last")
-        # df1.to_excel("tests/Headway_Geral_C_x_13M_D5_0004.xlsx",index=False)
+                try:
+                    result = model.DischargeHeadwayMotorcycleAnalysis(
+                        start_frame=int(model.fps*start_instant),
+                        last_frame=int(model.fps*last_instant)
+                    )
+                    df.append(result)
+                except Exception as e:
+                    print("Erro no DischargeHeadwayMotorcycleAnalysis")
+                    print(e)
+
+                try:
+                    result1 = model.GVCS_Type1(
+                        start_frame=int(model.fps*start_instant),
+                        last_frame=int(model.fps*last_instant),
+                    )
+                    df1.append(result1)
+                except Exception as e:
+                    print("Erro no GVCS_Type1")
+                    print(e)
+            
+            try:
+                df = pd.concat(df,ignore_index=True)
+                df = df.drop_duplicates(subset="id_follower",keep="last")
+                df.to_csv(f"data/sat_headway/sat_headway_{f}",index=False)
+            except Exception as e:
+                print(f"Erro salvar aquivo sat_headway_{f}")
+                print(e)
+
+            try:
+                df1 = pd.concat(df1,ignore_index=True)
+                df1 = df1.drop_duplicates(subset="id",keep="last")
+                df1.to_csv(f"data/geral_headway/geral_headway_{f}",index=False)
+            except Exception as e:
+                print(f"Erro salvar aquivo geral_headway_{f}")
+                print(e)
 
     if mode=="processing":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis\data\json"

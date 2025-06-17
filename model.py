@@ -4001,22 +4001,18 @@ class  YoloMicroscopicDataProcessing:
         for index,row in df_analyzed.iterrows():
             # min_count = int(row["headway"]*self.fps)
             # min_count = int(min_count/step_check_motorcycle)
-            min_frame_range = max(start_frame,row[self.frame_column+"_first_follower"])
-            max_frame_range = row[self.frame_column+"_crossing_leader"]+6
-            min_count = int(round((max_frame_range-min_frame_range)/step_check_motorcycle,0))
 
-            if min_count<=0:
-                df_analyzed[index,"valid"] = False
-                valid = False
-            else:
-                valid = row["valid"]
+            valid = row["valid"]
             
             if valid:
                 df_motorcycle_between_frame_row = []
                 df_motorcycle_virtual_lane_frame_row = []
-                print(row["id_leader"],row["id_follower"],min_count)
+                
                 # Se for o primeiro veículo da fila, o cálculo é diferente
                 if row[self.id_column+"_leader"]==-1 and row["position_queue_first_follower"]==1:
+                    min_frame_range = max(start_frame,row[self.frame_column+"_first_follower"])
+                    max_frame_range = row[self.frame_column+"_crossing_follower"]
+                    min_count = int(round((max_frame_range-min_frame_range)/step_check_motorcycle,0))
                     for f in range(min_frame_range,max_frame_range,step_check_motorcycle):
                         motorcycle_between_frame = self.VehicleAhead(
                             row[self.id_column+"_follower"],
@@ -4041,6 +4037,9 @@ class  YoloMicroscopicDataProcessing:
                         if not motorcycle_virtual_lane_frame.empty:
                             df_motorcycle_virtual_lane_frame_row.append(motorcycle_virtual_lane_frame[[self.id_column,self.frame_column]])
                 else:
+                    min_frame_range = max(start_frame,row[self.frame_column+"_first_follower"])
+                    max_frame_range = row[self.frame_column+"_crossing_follower"]+6
+                    min_count = int(round((max_frame_range-min_frame_range)/step_check_motorcycle,0))
                     for f in range(min_frame_range,max_frame_range,step_check_motorcycle):
                         motorcycle_between_frame = self.MotorcycleBetweenVehicleLF(
                             row[self.id_column+"_leader"],
@@ -4064,7 +4063,7 @@ class  YoloMicroscopicDataProcessing:
                             df_motorcycle_between_frame_row.append(motorcycle_between_frame[[self.id_column,self.frame_column]])
                         if not motorcycle_virtual_lane_frame.empty:
                             df_motorcycle_virtual_lane_frame_row.append(motorcycle_virtual_lane_frame[[self.id_column,self.frame_column]])
-                
+                print(row["id_leader"],row["id_follower"],min_count)
                 id_motorcycle = []
 
                 df_motorcycle_between_frame_row = pd.concat(df_motorcycle_between_frame_row+[pd.DataFrame(columns=[
