@@ -21,13 +21,13 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "test2"
+    mode = "test"
 
     if mode=="test2":
-        root_path = "data_fa"
+        root_path = "data_ignore"
         os.chdir(root_path)
 
-        file_list = os.listdir("raw")
+        file_list = os.listdir("data/raw")
         valid_id = ["_".join(i.split("_")[:-2]) for i in file_list]
 
         df_parameter = pd.read_excel("Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
@@ -38,27 +38,31 @@ if __name__=="__main__":
             ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
             limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
             limite_faixa.append(ll)
-            print(limite_faixa)
 
             RunDataProcessingFromSheetType1(
-                raw_file_path=os.path.join(f"raw/{row['id_voo']+"_transformed_rastreio.csv"}"),
+                raw_file_path=os.path.join(f"data/raw/{row['id_voo']+"_transformed_rastreio.csv"}"),
                 file_name=row["id_voo"],
                 mpp=float(row["mpp"]),
                 flip_h=True if row["fluxo"]!="→" else False,
                 virtual_lane_lim=limite_faixa,
                 image_reference=row["img_ref"]
-
             )
+    
+    if mode=="rerun":
+        RunDataProcessingFromParameterType1(
+            "data/json/C_x_13M_SemMotobox_D4_0004.json",
+            force_processing=True)
 
     if mode=="test":
         model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON("data/json/C_x_13M_D5_0004.json",post_processing=model.PostProcessing1)
+        model.ImportFromJSON("data/json/BM_x_PA_D2_0001.json",post_processing=model.PostProcessing1)
 
         df = []
         df1 = []
-        for i in range(len(model.green_open_time)-1):
-            start_instant = model.green_open_time[i]
-            last_instant = model.green_open_time[i+1]
+        range_instant = model.green_open_time+[model.df[model.instant_column].max()]
+        for i in range(len(range_instant)-1):
+            start_instant = range_instant[i]
+            last_instant = range_instant[i+1]
 
             result = model.DischargeHeadwayMotorcycleAnalysis(
                 start_frame=int(model.fps*start_instant),
@@ -73,11 +77,11 @@ if __name__=="__main__":
         
         df = pd.concat(df,ignore_index=True)
         df = df.drop_duplicates(subset="id_follower",keep="last")
-        df.to_excel("Headway_Sat_C_x_13M_SemMotobox_D5_0001_Teste2.xlsx",index=False)
+        df.to_excel("tests/Headway_Sat_BM_x_PA_D2_0001.xlsx",index=False)
 
         df1 = pd.concat(df1,ignore_index=True)
         df1 = df1.drop_duplicates(subset="id",keep="last")
-        df1.to_excel("Headway_Geral_C_x_13M_SemMotobox_D5_0001_Teste2.xlsx",index=False)
+        df1.to_excel("tests/Headway_Geral_BM_x_PA_D2_0001.xlsx",index=False)
 
     if mode=="processing":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis\data\json"
