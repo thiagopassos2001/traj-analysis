@@ -314,10 +314,10 @@ class  YoloMicroscopicDataProcessing:
             "video_heigth": int(self.video_heigth/self.mpp),
             "motobox_start_section":int(self.motobox_start_section/self.mpp),
             "motobox_end_section":int(self.motobox_end_section/self.mpp),
-            "motorcycle_waiting_area_polygon":self.motorcycle_waiting_area_polygon[["id","coords"]].to_dict(),
+            "motorcycle_waiting_area_polygon":self.motorcycle_waiting_area_polygon[["id","coords"]].to_dict("list"),
             "width_virtual_lane":self.width_virtual_lane,
             "virtual_lane_lim":[[[int(i[0]/self.mpp),int(i[-1]/self.mpp)] for i in j] for j in self.virtual_lane_lim],
-            "traffic_lane_polygon":self.traffic_lane_polygon[["id","coords"]].to_dict(),
+            "traffic_lane_polygon":self.traffic_lane_polygon[["id","coords"]].to_dict("list"),
             "green_open_time":self.green_open_time,
             "image_reference": f"data/image/{os.path.basename(str(self.image_reference))}",  # Alguns dados foram colocados como só o número do frame
             "flip_h":self.flip_h,
@@ -4453,20 +4453,24 @@ def RunDataProcessingFromSheetType1(
     num_traffic_lanes = len(traffic_lane_polygon_coords)
     id_traffic_lane = [str(i) for i in  range(1,num_traffic_lanes+1)]
     model.traffic_lane_polygon = dict(zip(["id","coords"],[id_traffic_lane,traffic_lane_polygon_coords]))
-
+    
     model.traffic_lane_polygon = gpd.GeoDataFrame(
             model.traffic_lane_polygon,
             geometry=[shapely.Polygon(i) for i in model.traffic_lane_polygon["coords"]],
             crs="EPSG:31984")
     model.traffic_lane_polygon["geometry"] = model.traffic_lane_polygon["geometry"].apply(model.ScalePxToMeterPolygon)
+    # print(model.traffic_lane_polygon[["id","coords"]].to_dict("list"))
+
+    # Ajusta o limite entre faixas
+    model.virtual_lane_lim = [[[i[0]*model.mpp,i[-1]*model.mpp] for i in j] for j in model.virtual_lane_lim]
 
     # Atribuir dimensões do vídeo
-    model.video_heigth = video_heigth
-    model.video_width = video_width
+    model.video_heigth = video_heigth*model.mpp
+    model.video_width = video_width*model.mpp
     
     # Características do motobox (obsoleto)
-    model.motobox_start_section = motobox_start_section
-    model.motobox_end_section = motobox_end_section
+    model.motobox_start_section = motobox_start_section*model.mpp
+    model.motobox_end_section = motobox_end_section*model.mpp
 
     # Largura teórica do corredor virtual
     model.width_virtual_lane = width_virtual_lane
@@ -4478,8 +4482,8 @@ def RunDataProcessingFromSheetType1(
     model.parameter_file = ""
     model.image_reference = image_reference
 
-    model.raw_file = f"raw/{os.path.basename(raw_file_path)}"
-    model.processed_file = f"processed/{file_name}.csv"
+    model.raw_file = f"data/raw/{os.path.basename(raw_file_path)}"
+    model.processed_file = f"data/processed/{file_name}.csv"
 
     if not os.path.exists(model.processed_file) or force_processing:
 
@@ -4554,7 +4558,7 @@ def RunDataProcessingFromSheetType1(
         model.df[model.traffic_lane_column] = model.df["tl_polygon"]
         model.df = pd.DataFrame(model.df.drop(columns=["tl_polygon","geometry"]))
 
-        model.CreateJSON(f"json/{file_name}.json")
+        model.CreateJSON(f"data/json/{file_name}.json")
 
         # Cálculo de posições estrátégicas longitudinais o veículo
         # Fundo do veículo

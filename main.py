@@ -21,7 +21,7 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "test"
+    mode = "rerun"
 
     if mode=="test2":
         root_path = "data_ignore"
@@ -30,8 +30,9 @@ if __name__=="__main__":
         file_list = os.listdir("data/raw")
         valid_id = ["_".join(i.split("_")[:-2]) for i in file_list]
 
-        df_parameter = pd.read_excel("Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
+        df_parameter = pd.read_excel("data/Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
         df_parameter = df_parameter[df_parameter["id_voo"].isin(valid_id)]
+        df_parameter = df_parameter[df_parameter["id_voo"]=="32_A_5"]
 
         for index,row in df_parameter.iterrows():
             limite_faixa = eval(row["limite_faixa"])
@@ -47,11 +48,14 @@ if __name__=="__main__":
                 virtual_lane_lim=limite_faixa,
                 image_reference=row["img_ref"]
             )
+            break
     
     if mode=="rerun":
-        RunDataProcessingFromParameterType1(
-            "data/json/C_x_13M_SemMotobox_D4_0004.json",
-            force_processing=True)
+        root_path = "data_ignore"
+        os.chdir(root_path)
+        model = YoloMicroscopicDataProcessing()
+        model.ImportFromJSON("data/json/32_A_5.json",post_processing=model.PostProcessing1)
+        print(model.df)
 
     if mode=="test":
         model = YoloMicroscopicDataProcessing()
