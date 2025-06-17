@@ -21,8 +21,16 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "rerun"
+    mode = "test"
 
+    if mode=="test3":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+        model = YoloMicroscopicDataProcessing()
+        model.ImportFromJSON("data/json/79_B_2.json",post_processing=model.PostProcessing1)
+
+        print(model.HeadwayDeltaSpeed(304,int(55*30)))
+        
     if mode=="test2":
         root_path = "data_ignore"
         os.chdir(root_path)
@@ -32,7 +40,7 @@ if __name__=="__main__":
 
         df_parameter = pd.read_excel("data/Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
         df_parameter = df_parameter[df_parameter["id_voo"].isin(valid_id)]
-        df_parameter = df_parameter[df_parameter["id_voo"]=="32_A_5"]
+        df_parameter = df_parameter[df_parameter["id_voo"]=="79_B_2"]
 
         for index,row in df_parameter.iterrows():
             limite_faixa = eval(row["limite_faixa"])
@@ -48,7 +56,6 @@ if __name__=="__main__":
                 virtual_lane_lim=limite_faixa,
                 image_reference=row["img_ref"]
             )
-            break
     
     if mode=="rerun":
         root_path = "data_ignore"
@@ -59,7 +66,7 @@ if __name__=="__main__":
 
     if mode=="test":
         model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON("data/json/BM_x_PA_D2_0001.json",post_processing=model.PostProcessing1)
+        model.ImportFromJSON("data/json/C_x_13M_D5_0004.json",post_processing=model.PostProcessing1)
 
         df = []
         df1 = []
@@ -72,20 +79,20 @@ if __name__=="__main__":
                 start_frame=int(model.fps*start_instant),
                 last_frame=int(model.fps*last_instant)
             )
-            result1 = model.GVCS_Type1(
-                start_frame=int(model.fps*start_instant),
-                last_frame=int(model.fps*last_instant),
-            )
+            # result1 = model.GVCS_Type1(
+            #     start_frame=int(model.fps*start_instant),
+            #     last_frame=int(model.fps*last_instant),
+            # )
             df.append(result)
-            df1.append(result1)
+            # df1.append(result1)
         
         df = pd.concat(df,ignore_index=True)
         df = df.drop_duplicates(subset="id_follower",keep="last")
-        df.to_excel("tests/Headway_Sat_BM_x_PA_D2_0001.xlsx",index=False)
+        df.to_excel("tests/Headway_Sat_C_x_13M_D5_0004.xlsx",index=False)
 
-        df1 = pd.concat(df1,ignore_index=True)
-        df1 = df1.drop_duplicates(subset="id",keep="last")
-        df1.to_excel("tests/Headway_Geral_BM_x_PA_D2_0001.xlsx",index=False)
+        # df1 = pd.concat(df1,ignore_index=True)
+        # df1 = df1.drop_duplicates(subset="id",keep="last")
+        # df1.to_excel("tests/Headway_Geral_C_x_13M_D5_0004.xlsx",index=False)
 
     if mode=="processing":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis\data\json"

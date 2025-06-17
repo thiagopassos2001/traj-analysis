@@ -3966,6 +3966,7 @@ class  YoloMicroscopicDataProcessing:
             c = True # if row[self.id_column+"_follower"]==row[self.id_column+"_follower2"] else False
             d = True if row[self.id_column+"_follower"] not in false_follower else False
             e = True if row[self.id_column+"_leader"] not in false_leader else False
+            f = True if row[self.frame_column+"_first_follower"]<row[self.frame_column+"_crossing_leader"]+6 else False
             
             if not a1:
                 false_follower.append(row[self.id_column+"_leader"])
@@ -3983,9 +3984,11 @@ class  YoloMicroscopicDataProcessing:
                 report = report + "@Problema com o seguidor"
             if not e:
                 report = report + "@Problema com o líder"
+            if not f:
+                report = report + "@O seguidor apareceu após a saída do líder, não é possível computar"
             
-            print(row["id_follower"],a1,a2,a3,b,c,d,e)
-            if a1 and a2 and a3 and b and c and d and e:
+            print(row["id_follower"],a1,a2,a3,b,c,d,e,f)
+            if a1 and a2 and a3 and b and c and d and e and f:
                 df_analyzed.loc[index,"headway"] = row[self.instant_column+"_crossing_follower"] - row[self.instant_column+"_crossing_leader"]
                 df_analyzed.loc[index,"valid"] = True
             else:
@@ -4146,6 +4149,62 @@ class  YoloMicroscopicDataProcessing:
     ):
         
         return "200"
+
+    def HeadwayDeltaSpeed(
+        self,
+        id_vehicle,
+        frame,
+        ):
+
+        df_analyzed = pd.DataFrame(
+            columns=[
+                self.frame_column,
+                self.instant_column,
+                self.y_centroid_column,
+                self.id_column+"_follower",
+                self.x_instant_speed_column+"_follower",
+                self.id_column+"_leader",
+                self.x_instant_speed_column+"_leader",
+                "delta_speed",
+                "distance",
+                "headway"
+            ]
+        )
+
+        vehicle_leader = self.FirstVehicleAhead(
+            id_vehicle=id_vehicle,
+            frame=frame,
+        )
+
+        if vehicle_leader.empty:
+            return df_analyzed
+        
+        vehicle_follower = self.df[(self.df[self.id_column]==id_vehicle) & (self.df[self.frame_column]==frame)]
+        
+        df_analyzed.loc[0,self.frame_column] = frame
+        df_analyzed.loc[0,self.instant_column] = frame/self.fps
+        df_analyzed.loc[0,self.y_centroid_column] = vehicle_follower[self.y_centroid_column].values[0]
+        df_analyzed.loc[0,self.id_column+"_follower"] = id_vehicle
+        df_analyzed.loc[0,self.x_instant_speed_column+"_follower"] = vehicle_follower[self.x_instant_speed_column].values[0]
+        df_analyzed.loc[0,self.id_column+"_leader"] = vehicle_leader[self.id_column].values[0]
+        df_analyzed.loc[0,self.x_instant_speed_column+"_leader"] = vehicle_leader[self.x_instant_speed_column].values[0]
+        df_analyzed.loc[0,"delta_speed"] = df_analyzed[self.x_instant_speed_column+"_follower"].values[0]-df_analyzed[self.x_instant_speed_column+"_leader"].values[0]
+
+        height_section = 2
+        headway,distance = self.TimeSpaceHeadway(
+            vehicle_id=id_vehicle,
+            frame=frame,
+            section=shapely.LineString([
+                [vehicle_leader[self.x_head_column].values[0],vehicle_leader[self.y_centroid_column].values[0]-height_section/2],
+                [vehicle_leader[self.x_head_column].values[0],vehicle_leader[self.y_centroid_column].values[0]+height_section/2]
+            ])
+        )
+
+        df_analyzed.loc[0,"headway"] = headway
+        df_analyzed.loc[0,"distance"] = distance
+
+        return df_analyzed
+
 
 # Fluxo de execução para trabalhar com múltiplos arquivos
 # Copiar o padrão de alterar
