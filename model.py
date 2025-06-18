@@ -596,7 +596,8 @@ class  YoloMicroscopicDataProcessing:
             overlap_lat:float=0,
             side:str='both',
             ignore_vehicle_types_list:list=None,
-            max_lat_dist:float=None):
+            max_lat_dist:float=None,
+            report_just_min=False):
         '''
         O sentido adotado para descrever esquerda e direita refere-se ao sentido do
         vídeo gradado com o tráfego deslocando-se de oeste para leste
@@ -653,6 +654,9 @@ class  YoloMicroscopicDataProcessing:
         # Filtra veículos muito distantes lateralmente
         if max_lat_dist!=None:
             df_analysis = df_analysis[df_analysis["lateral_distance_between_vehicles"]<=max_lat_dist]
+        
+        if (len(df_analysis)>1) and report_just_min:
+            df_analysis = df_analysis.sort_values('lateral_distance_between_vehicles').iloc[:1]
 
         return df_analysis
 

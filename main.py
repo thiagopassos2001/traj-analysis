@@ -71,8 +71,9 @@ if __name__=="__main__":
         all_files = os.listdir(root_file)
 
         for f in all_files:
+            print(f"Processando {f}")
             model = YoloMicroscopicDataProcessing()
-            model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D4_0004.json",post_processing=model.PostProcessing1)
+            model.ImportFromJSON(os.path.join(root_file,f),post_processing=model.PostProcessing1)
 
             df = []
             df1 = []
@@ -104,7 +105,7 @@ if __name__=="__main__":
             try:
                 df = pd.concat(df,ignore_index=True)
                 df = df.drop_duplicates(subset="id_follower",keep="last")
-                df.to_csv(f"data/sat_headway/sat_headway_{f}",index=False)
+                df.to_csv(f"data/sat_headway/sat_headway_{f.replace('json','csv')}",index=False)
             except Exception as e:
                 print(f"Erro salvar aquivo sat_headway_{f}")
                 print(e)
@@ -112,10 +113,12 @@ if __name__=="__main__":
             try:
                 df1 = pd.concat(df1,ignore_index=True)
                 df1 = df1.drop_duplicates(subset="id",keep="last")
-                df1.to_csv(f"data/geral_headway/geral_headway_{f}",index=False)
+                df1.to_csv(f"data/geral_headway/geral_headway_{f.replace('json','csv')}",index=False)
             except Exception as e:
                 print(f"Erro salvar aquivo geral_headway_{f}")
                 print(e)
+            
+            print(f"Concluído {f}")
 
     if mode=="processing":
         root_path = r"C:\Users\User\Desktop\Repositórios Locais\traj-analysis\data\json"
