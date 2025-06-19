@@ -597,6 +597,7 @@ class  YoloMicroscopicDataProcessing:
             side:str='both',
             ignore_vehicle_types_list:list=None,
             max_lat_dist:float=None,
+            report_nan=True,
             report_just_min=False):
         '''
         O sentido adotado para descrever esquerda e direita refere-se ao sentido do
@@ -655,6 +656,10 @@ class  YoloMicroscopicDataProcessing:
         if max_lat_dist!=None:
             df_analysis = df_analysis[df_analysis["lateral_distance_between_vehicles"]<=max_lat_dist]
         
+        if df_analysis.empty and report_nan:
+            df_analysis.loc[len(df_analysis)] = pd.Series(np.nan)
+            df_analysis[self.frame_column] = motorcycle[self.frame_column].iloc[0]
+
         if (len(df_analysis)>1) and report_just_min:
             df_analysis = df_analysis.sort_values('lateral_distance_between_vehicles').iloc[:1]
 

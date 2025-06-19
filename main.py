@@ -40,24 +40,36 @@ if __name__=="__main__":
 
         df_parameter = pd.read_excel("data/Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
         df_parameter = df_parameter[df_parameter["id_voo"].isin(valid_id)]
-        df_parameter = df_parameter[df_parameter["id_voo"]=="32_B_5"]
+        df_parameter = df_parameter[df_parameter["tipo_local"]=="MQ"]
+
+        print(df_parameter["id_voo"].tolist())
 
         for index,row in df_parameter.iterrows():
-            limite_faixa = eval(row["limite_faixa"])
-            # ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
-            # limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
-            # limite_faixa.append(ll)
-            limite_faixa = [[[0,i[0][-1]]]+i+[[1920,i[-1][-1]]] for i in limite_faixa]
-            print(limite_faixa)
+            try:
+                print("Processando",row['id_voo'])
+                limite_faixa = eval(row["limite_faixa"])
+                # ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
+                # limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
+                # limite_faixa.append(ll)
+                limite_faixa = [[[0,i[0][-1]]]+i+[[1920,i[-1][-1]]] for i in limite_faixa]
+                print(limite_faixa)
 
-            RunDataProcessingFromSheetType1(
-                raw_file_path=os.path.join(f"data/raw/{row['id_voo']+"_transformed_rastreio.csv"}"),
-                file_name=row["id_voo"],
-                mpp=float(row["mpp"]),
-                flip_h=True if row["fluxo"]!="→" else False,
-                virtual_lane_lim=limite_faixa,
-                image_reference=row["img_ref"]
-            )
+                RunDataProcessingFromSheetType1(
+                    raw_file_path=os.path.join(f"data/raw/{row['id_voo']+"_transformed_rastreio.csv"}"),
+                    file_name=row["id_voo"],
+                    mpp=float(row["mpp"]),
+                    flip_h=True if row["fluxo"]!="→" else False,
+                    virtual_lane_lim=limite_faixa,
+                    image_reference=row["img_ref"]
+                )
+
+                model = YoloMicroscopicDataProcessing()
+                model.ImportFromJSON(f"data/json/{row['id_voo']}.json")
+                model_smoothed = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
+                model_smoothed.to_csv(f"data/suavizado/{row['id_voo']}.csv",index=False)
+                print("Fim",row['id_voo'])
+            except Exception as e:
+                print(e)
     
     if mode=="rerun":
         root_path = "data_ignore"
@@ -70,6 +82,10 @@ if __name__=="__main__":
         root_file = "data/json"
         all_files = os.listdir(root_file)
 
+        exist_files = ["_".join(i.split("_")[2:]).split(".")[0]+".json" for i in os.listdir("data/sat_headway")]
+        all_files = reversed([i for i in all_files if i not in exist_files])
+        
+
         for f in all_files:
             print(f"Processando {f}")
             model = YoloMicroscopicDataProcessing()
@@ -77,7 +93,7 @@ if __name__=="__main__":
 
             df = []
             df1 = []
-            range_instant = model.green_open_time+[model.df[model.instant_column].max()]
+            range_instant = model.green_open_time+[model.df[model.instant_column].max()-10]
             for i in range(len(range_instant)-1):
                 start_instant = range_instant[i]
                 last_instant = range_instant[i+1]
