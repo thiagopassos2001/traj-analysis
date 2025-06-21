@@ -1,3 +1,1 @@
-a = """time_mm:ss	frame_first_follower	instant_first_follower	traffic_lane_first_follower	id_follower	vehicle_type_follower	x_first_follower	frame_crossing_follower	instant_crossing_follower	traffic_lane_crossing_follower	position_queue_first_follower	id_leader	frame_crossing_leader	instant_crossing_leader	traffic_lane_crossing_leader	id_follower2	headway	valid	report	idQmev	Qmev	idQmcv	Qmcv	(11, 'valid')	(12, 'valid')	(18, 'valid')	(32, 'valid')	(34, 'valid')	idMaxHd	MaxHd	(15, 'valid')	(16, 'valid')	(22, 'valid')	(39, 'valid')	(41, 'valid')	(17, 'valid')	(20, 'valid')	(42, 'valid')	(33, 'valid')""".split("\t")
-
-print(a)
+print(["sdsd","sdsdsd0","sds6"][:3])

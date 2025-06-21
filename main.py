@@ -21,7 +21,23 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "concat"
+    mode = "FatEq"
+
+    if mode=="FatEq":
+        model = YoloMicroscopicDataProcessing()
+        model.ImportFromJSON("data/json/BM_x_PA_D2_0001.json",post_processing=model.PostProcessing1)
+
+        result = model.EquivalenceFactor(
+            int(round(model.green_open_time[1]*model.fps,0)),
+            int(round(model.green_open_time[2]*model.fps,0))
+        )
+
+        # result = model.GVCS_Type1(
+        #     start_frame=int(round(model.green_open_time[1]*model.fps,0)),
+        #     last_frame=int(round(model.green_open_time[2]*model.fps,0))
+        # )
+
+        print(result)
 
     if mode=="concat":
         # Concatenar resumo
