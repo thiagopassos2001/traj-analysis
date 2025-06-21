@@ -21,7 +21,19 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "run_sat_headway"
+    mode = "concat"
+
+    if mode=="concat":
+        # Concatenar resumo
+        output_folder = 'data/geral_headway'
+        df = []
+        all_files = os.listdir(output_folder)
+        for f in all_files:
+            df_ = pd.read_csv(os.path.join(output_folder,f))
+            df_.insert(0,"file",f)
+            df.append(df_)
+        df = pd.concat(df,ignore_index=True)
+        df.to_excel("data/summary/geral_headway_19_06_25.xlsx",index=False)
 
     if mode=="test3":
         root_path = "data_ignore"
