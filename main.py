@@ -25,19 +25,29 @@ if __name__=="__main__":
 
     if mode=="FatEq":
         model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON("data/json/BM_x_PA_D2_0001.json",post_processing=model.PostProcessing1)
+        model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D4_0004.json",post_processing=model.PostProcessing1)
 
-        result = model.EquivalenceFactor(
-            int(round(model.green_open_time[1]*model.fps,0)),
-            int(round(model.green_open_time[2]*model.fps,0))
-        )
+        result = []
+        range_instant = model.green_open_time+[model.df[model.instant_column].max()-10]
+        for i in range(len(range_instant)-1):
+            try:
+                start_instant = range_instant[i]
+                last_instant = range_instant[i+1]
 
-        # result = model.GVCS_Type1(
-        #     start_frame=int(round(model.green_open_time[1]*model.fps,0)),
-        #     last_frame=int(round(model.green_open_time[2]*model.fps,0))
-        # )
+                result_ = model.EquivalenceFactor(
+                    int(round(start_instant*model.fps,0)),
+                    int(round(last_instant*model.fps,0))
+                )
 
+                result.append(result_)
+                print(start_instant,last_instant,"OK")
+            except Exception as e:
+                print(e)
+        
+        result = pd.concat(result,ignore_index=True)
         print(result)
+
+        result.to_excel("tests/FatEq_C_x_13M_SemMotobox_D4_0004.xlsx",index=False)
 
     if mode=="concat":
         # Concatenar resumo

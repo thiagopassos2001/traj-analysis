@@ -4164,6 +4164,8 @@ class  YoloMicroscopicDataProcessing:
         last_frame,
         ):
 
+        section_ref = s = shapely.LineString([[self.motobox_end_section+2,self.video_heigth],[self.motobox_end_section+2,0]])
+
         # Filtra os limites temporais
         df_analyzed = self.df[self.df[self.frame_column].between(start_frame,last_frame)]
         # Ids no final
@@ -4194,7 +4196,7 @@ class  YoloMicroscopicDataProcessing:
         # Instantes dos veículos cruzando a faixa de retenção
         df_row_follower_crossing = []
         for index,row in df_analyzed.iterrows():
-            row_follower_crossing = self.VechicleCrossingFromEndMWA(row[self.id_column])
+            row_follower_crossing = self.VechicleCrossingSection(row[self.id_column],section_ref)
             df_row_follower_crossing.append(row_follower_crossing)
         df_row_follower_crossing = pd.concat(df_row_follower_crossing,ignore_index=True)
 
@@ -4287,6 +4289,20 @@ class  YoloMicroscopicDataProcessing:
                 return row[col]
             else:
                 return row[col] and df_analyzed.loc[row.name-1,col]
+        
+        def KeepValid(df):
+            df = df.reset_index(drop=False)
+            status = True
+            for index,row in df.iterrows():
+                if (row["position_queue_first_follower"]==1) or (index==0): #  
+                    df.loc[index,"keep"] = row["valid"]
+                    status = row["valid"]
+                else:
+                    df.loc[index,"keep"] = row["valid"] and status
+                    status = df.loc[index,"keep"]
+            df["keep"] = df["keep"].astype(bool)
+            return df
+
         def ValidHeadway(position,headway):
             if position==1:
                 if headway <= 6:
@@ -4305,11 +4321,24 @@ class  YoloMicroscopicDataProcessing:
                     return False
         
         df_headway = self.GVCS_Type1(
+            section=section_ref,
             start_frame=start_frame,
-            last_frame=df_analyzed[self.frame_column+"_crossing_follower"].max()+1
+            last_frame=df_analyzed[self.frame_column+"_crossing_follower"].max()
         ).rename(columns={self.id_column:self.id_column+"_follower"}).reset_index(drop=True)
 
+        df_motorcycle = self.GroupVechiclesCrossingSection(
+            section=section_ref,
+            start_frame=start_frame,
+            last_frame=last_frame,
+            alignment_check=False,
+            ignore_vehicle_types_list=self.vehicle_category_list["four_wheel"]+self.vehicle_category_list["walk"])
+        df_motorcycle['virutal_lane'] = df_motorcycle.apply(lambda row:VirtualLaneDetector(row[self.x_centroid_column],row[self.y_centroid_column],self.virtual_lane_lim,1.6),axis=1)
+
         # Propagar erros caso ocorram no meio e não prejudique os demais
+        df_analyzed[self.traffic_lane_column+"_first_follower"] = df_analyzed[self.traffic_lane_column+"_first_follower"].astype(int)
+        
+        # print(df_analyzed[["id_follower","position_queue_crossing_follower","valid"]])
+        
         df_agg = []
         for traffic_lane in sorted(df_analyzed[self.traffic_lane_column+"_first_follower"].unique().tolist()):
             
@@ -4324,18 +4353,31 @@ class  YoloMicroscopicDataProcessing:
 
             df_headway_traffic_lane["position_queue_first_follower"] = df_headway_traffic_lane["position_queue_first_follower"].fillna(method="bfill")
             df_headway_traffic_lane["valid"] = df_headway_traffic_lane["valid"].fillna(True)
+            df_headway_traffic_lane["valid_order"] = df_headway_traffic_lane["valid"]
             df_headway_traffic_lane["valid_headway"] = df_headway_traffic_lane.apply(lambda row:ValidHeadway(row["position_queue_first_follower"],row["headway"]),axis=1)
-            
-            df_headway_traffic_lane["valid"] = df_headway_traffic_lane["valid"] * df_headway_traffic_lane["valid_headway"]
-            df_headway_traffic_lane["keep"] = df_headway_traffic_lane.apply(lambda row:KeepObservation(row,df_headway_traffic_lane,"valid"),axis=1)
+
+            df_headway_traffic_lane["valid"] = df_headway_traffic_lane["valid_order"] * df_headway_traffic_lane["valid_headway"]
+            df_headway_traffic_lane = KeepValid(df_headway_traffic_lane)
+            # print(df_headway_traffic_lane[["id_follower","vehicle_type","position_queue_first_follower","headway","keep"]])
+
+            last_instant_report = df_headway_traffic_lane[-df_headway_traffic_lane["keep"]]
+            if last_instant_report.empty:
+                last_instant_report = "Fim do ciclo"
+            else:
+                if not last_instant_report["valid_order"].iloc[0]:
+                    last_instant_report = "Fluxo interrompido por algum evento"
+                elif not last_instant_report["valid_headway"].iloc[0]:
+                    last_instant_report = "Headway entre veículos foi elevado"
+                else:
+                    last_instant_report = "?"
+
             df_headway_traffic_lane = df_headway_traffic_lane[df_headway_traffic_lane["keep"]]
 
             df_analyzed_traffic_lane = df_analyzed_traffic_lane.merge(
                 df_headway_traffic_lane[[self.id_column+"_follower","keep"]],
                 on=self.id_column+"_follower",
                 how="left"
-            )
-
+            ).reset_index(drop=False)
             df_analyzed_traffic_lane["keep"] = df_analyzed_traffic_lane["keep"].fillna(False)
             df_analyzed_traffic_lane = df_analyzed_traffic_lane[df_analyzed_traffic_lane["keep"]]
 
@@ -4343,29 +4385,40 @@ class  YoloMicroscopicDataProcessing:
 
             if df_analyzed_traffic_lane.empty:
                 df_agg_traffic_lane.loc[0,self.traffic_lane_column] = traffic_lane
+                df_agg_traffic_lane.loc[0,"stop_condition"] = "Sem veículos válidos"
                 df_agg_traffic_lane.loc[0,"start_instant"] = round(start_frame/self.fps,2)
+                df_agg_traffic_lane.loc[0,"last_instant"] = round(start_frame/self.fps,2)
+                df_agg_traffic_lane.loc[0,"last_vehicle"] = -1
             else:
                 df_agg_traffic_lane.loc[0,self.traffic_lane_column] = traffic_lane
+                df_agg_traffic_lane.loc[0,"stop_condition"] = last_instant_report
                 df_agg_traffic_lane.loc[0,"start_instant"] = round(start_frame/self.fps,2)
                 df_agg_traffic_lane.loc[0,"last_instant"] = round(df_analyzed_traffic_lane[self.frame_column+"_crossing_follower"].iloc[-1]/self.fps,2)
                 df_agg_traffic_lane.loc[0,"last_vehicle"] = df_analyzed_traffic_lane[self.id_column+"_follower"].iloc[-1]
-                # df_agg_traffic_lane["green_time"] = df_agg_traffic_lane["end_instant"]-df_agg_traffic_lane["start_instant"]
 
-                # print(df_analyzed_traffic_lane[self.vehicle_type_column+"_follower"])
+                for i in self.vehicle_category_list["four_wheel"]:
+                    vehicle_i = df_analyzed_traffic_lane[df_analyzed_traffic_lane[self.vehicle_type_column+"_follower"]==i]
+                    df_agg_traffic_lane.loc[0,"id"+i] = "["+",".join([str(j) for j in vehicle_i[self.id_column+"_follower"].tolist()])+"]"
+                    df_agg_traffic_lane.loc[0,i] = len(vehicle_i)
 
-                for i in self.vehicle_type_list:
-                    df_agg_traffic_lane.loc[0,i] = len(df_analyzed_traffic_lane[df_analyzed_traffic_lane[self.vehicle_type_column+"_follower"]==i])
+                # Motos 
+                virtual_lane_code = [traffic_lane-1,traffic_lane]
+                df_motorcycle_traffic_lane = df_motorcycle[(df_motorcycle[self.traffic_lane_column]==traffic_lane) | (df_motorcycle["virutal_lane"].isin(virtual_lane_code))]
+                df_motorcycle_traffic_lane = df_motorcycle_traffic_lane[df_motorcycle_traffic_lane[self.frame_column].between(start_frame,df_analyzed_traffic_lane[self.frame_column+"_crossing_follower"].iloc[-1])]
+                df_agg_traffic_lane.loc[0,"idMoto"] = "["+",".join([str(j) for j in df_motorcycle_traffic_lane[self.id_column].tolist()])+"]"
+                df_agg_traffic_lane.loc[0,"Moto"] = len(df_motorcycle_traffic_lane)
 
             df_agg.append(df_agg_traffic_lane)
 
         df_agg = pd.concat(df_agg,ignore_index=True)
-        df_agg[self.vehicle_type_list] = df_agg[self.vehicle_type_list].fillna(0).astype(int)
+        id_vehicle_cols = ["id"+i for i in self.vehicle_category_list["four_wheel"]+["Moto"]]
+        df_agg[self.vehicle_category_list["four_wheel"]+["Moto"]] = df_agg[self.vehicle_category_list["four_wheel"]+["Moto"]].fillna(0).astype(int)
+        df_agg[id_vehicle_cols] = df_agg[id_vehicle_cols].fillna("[]")
         df_agg.insert(3,"green_time",df_agg["last_instant"]-df_agg["start_instant"])
 
-        # cols = list(df_analyzed.columns.values)
-        # cols.remove(self.id_column+"_follower")
-        # cols.insert(0,self.id_column+"_follower")
-
+        df_agg.insert(0,"time_mm:ss",f"{int((start_frame/self.fps)//60):02}:{int(round((start_frame/self.fps),0)%60):02}")
+        df_agg[self.traffic_lane_column] = df_agg[self.traffic_lane_column].astype(int)
+        
         return df_agg
 
     def do_a_something(
@@ -4977,3 +5030,16 @@ def ConcatDicts(list_dicts,sort_values=False,ascending=True):
     if sort_values:
         result = dict(sorted(result.items(),key=lambda item:item[1],reverse=not ascending))
     return result
+
+def VirtualLaneDetector(x,y,virtual_lane_lim,virtual_lane_width):
+    virtual_lane = -1
+    count = 0
+
+    for list_point in virtual_lane_lim:
+        count = count + 1
+        func_virtual_lane = PolygonalToFunction(list_point)
+        if (y>=func_virtual_lane(x)-0.5*virtual_lane_width) and (y<=func_virtual_lane(x)+0.5*virtual_lane_width):
+            virtual_lane = count
+            break
+
+    return virtual_lane
