@@ -25,7 +25,7 @@ if __name__=="__main__":
 
     if mode=="FatEq":
         model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON("data/json/C_x_13M_SemMotobox_D4_0004.json",post_processing=model.PostProcessing1)
+        model.ImportFromJSON("data/json/BM_x_PA_D2_0001.json",post_processing=model.PostProcessing1)
 
         result = []
         range_instant = model.green_open_time+[model.df[model.instant_column].max()-10]
@@ -47,7 +47,7 @@ if __name__=="__main__":
         result = pd.concat(result,ignore_index=True)
         print(result)
 
-        result.to_excel("tests/FatEq_C_x_13M_SemMotobox_D4_0004.xlsx",index=False)
+        result.to_excel("tests/FatEq_BM_x_PA_D2_0001.xlsx",index=False)
 
     if mode=="concat":
         # Concatenar resumo
