@@ -21,39 +21,47 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "FatEq"
+    mode = "concat"
 
     if mode=="FatEq":
-        model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON("data/json/BM_x_PA_D5_0005.json",post_processing=model.PostProcessing1)
+        root_file = "data/json"
+        all_files = os.listdir(root_file)
 
-        result = []
-        range_instant = model.green_open_time+[model.df[model.instant_column].max()]
-        for i in range(len(range_instant)-1):
-            # try:
-            start_instant = range_instant[i]
-            last_instant = range_instant[i+1]
+        exist_files = ["_".join(i.split("_")[2:]).split(".")[0]+".json" for i in os.listdir("data/equivalence_factor")]
+        all_files = [i for i in all_files if i not in exist_files]
+        
+        for f in all_files:
+            print(f"Processando {f}")
+            model = YoloMicroscopicDataProcessing()
+            model.ImportFromJSON(os.path.join(root_file,f),post_processing=model.PostProcessing1)
 
-            result_ = model.EquivalenceFactor(
-                int(round(start_instant*model.fps,0)),
-                int(round(last_instant*model.fps,0))
-            )
+            df = []
+            range_instant = model.green_open_time+[model.df[model.instant_column].max()-10]
+            for i in range(len(range_instant)-1):
+                start_instant = range_instant[i]
+                last_instant = range_instant[i+1]
 
-            result.append(result_)
-            print(start_instant,last_instant,"OK")
-            # except Exception as e:
-            #     print(e)
-            # finally:
-            #     pass
-
-        result = pd.concat(result,ignore_index=True)
-        print(result)
-
-        result.to_excel("tests/FatEq_BM_x_PA_D5_0005.xlsx",index=False)
+                try:
+                    result = model.EquivalenceFactor(
+                        int(round(start_instant*model.fps,0)),
+                        int(round(last_instant*model.fps,0))
+                    )
+                    df.append(result)
+                except Exception as e:
+                    print("Erro no Fator de Equivalencia")
+                    print(e)
+            try:
+                df = pd.concat(df,ignore_index=True)
+                df.to_csv(f"data/equivalence_factor/fator_equivalencia_{f.replace('json','csv')}",index=False)
+            except Exception as e:
+                print(f"Erro salvar aquivo fator_equivalencia_{f}")
+                print(e)
+            
+            print(f"Concluído {f}")
 
     if mode=="concat":
         # Concatenar resumo
-        output_folder = 'data/geral_headway'
+        output_folder = 'data/equivalence_factor'
         df = []
         all_files = os.listdir(output_folder)
         for f in all_files:
@@ -61,7 +69,7 @@ if __name__=="__main__":
             df_.insert(0,"file",f)
             df.append(df_)
         df = pd.concat(df,ignore_index=True)
-        df.to_excel("data/summary/geral_headway_19_06_25.xlsx",index=False)
+        df.to_excel("data/summary/equivalence_factor_23_06_25.xlsx",index=False)
 
     if mode=="test3":
         root_path = "data_ignore"
