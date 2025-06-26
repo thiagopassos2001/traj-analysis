@@ -4165,6 +4165,7 @@ class  YoloMicroscopicDataProcessing:
         self,
         start_frame,
         last_frame,
+        max_queue=15,
         ):
 
         df_null_report = pd.DataFrame(columns=[
@@ -4259,6 +4260,8 @@ class  YoloMicroscopicDataProcessing:
             df_analyzed.loc[index,"position_queue_first_follower"] = count_position
             traffic_lane = row[self.traffic_lane_column+"_first_follower"]
         df_analyzed["position_queue_first_follower"] = df_analyzed["position_queue_first_follower"].astype(int)
+
+        df_analyzed = df_analyzed[df_analyzed["position_queue_first_follower"]<=max_queue]
 
         # Posição ao cruzar a linha de renteção (por ordem de aparecimento e ao longo do trecho)
         df_analyzed = df_analyzed.sort_values(
@@ -4429,6 +4432,9 @@ class  YoloMicroscopicDataProcessing:
                 df_motorcycle_traffic_lane = df_motorcycle_traffic_lane[df_motorcycle_traffic_lane[self.frame_column].between(start_frame,df_analyzed_traffic_lane[self.frame_column+"_crossing_follower"].iloc[-1])]
                 df_agg_traffic_lane.loc[0,"idMoto"] = "["+",".join([str(j) for j in df_motorcycle_traffic_lane[self.id_column].tolist()])+"]"
                 df_agg_traffic_lane.loc[0,"Moto"] = len(df_motorcycle_traffic_lane)
+
+            df_agg_traffic_lane["AllVehicleWithoutMotorcycle"] = df_agg_traffic_lane[self.vehicle_category_list["four_wheel"]].sum(axis=1)
+            df_agg_traffic_lane["AllVehicle"] = df_agg_traffic_lane[self.vehicle_category_list["four_wheel"]+["Moto"]].sum(axis=1)
 
             df_agg.append(df_agg_traffic_lane)
         

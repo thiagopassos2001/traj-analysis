@@ -27,7 +27,7 @@ if __name__=="__main__":
         root_file = "data/json"
         all_files = os.listdir(root_file)
 
-        exist_files = ["_".join(i.split("_")[2:]).split(".")[0]+".json" for i in os.listdir("data/equivalence_factor")]
+        exist_files = ["_".join(i.split("_")[2:]).split(".")[0]+".json" for i in os.listdir("data/equivalence_factor") if i!="V1"]
         all_files = [i for i in all_files if i not in exist_files]
         
         for f in all_files:
@@ -36,28 +36,31 @@ if __name__=="__main__":
             model.ImportFromJSON(os.path.join(root_file,f),post_processing=model.PostProcessing1)
 
             df = []
-            range_instant = model.green_open_time+[model.df[model.instant_column].max()-10]
-            for i in range(len(range_instant)-1):
-                start_instant = range_instant[i]
-                last_instant = range_instant[i+1]
-
-                try:
-                    result = model.EquivalenceFactor(
-                        int(round(start_instant*model.fps,0)),
-                        int(round(last_instant*model.fps,0))
-                    )
-                    df.append(result)
-                except Exception as e:
-                    print("Erro no Fator de Equivalencia")
-                    print(e)
             try:
-                df = pd.concat(df,ignore_index=True)
-                df.to_csv(f"data/equivalence_factor/fator_equivalencia_{f.replace('json','csv')}",index=False)
-            except Exception as e:
-                print(f"Erro salvar aquivo fator_equivalencia_{f}")
-                print(e)
-            
-            print(f"Concluído {f}")
+                range_instant = model.green_open_time+[model.df[model.instant_column].max()-10]
+                for i in range(len(range_instant)-1):
+                    start_instant = range_instant[i]
+                    last_instant = range_instant[i+1]
+
+                    try:
+                        result = model.EquivalenceFactor(
+                            int(round(start_instant*model.fps,0)),
+                            int(round(last_instant*model.fps,0))
+                        )
+                        df.append(result)
+                    except Exception as e:
+                        print("Erro no Fator de Equivalencia")
+                        print(e)
+                try:
+                    df = pd.concat(df,ignore_index=True)
+                    df.to_csv(f"data/equivalence_factor/fator_equivalencia_{f.replace('json','csv')}",index=False)
+                except Exception as e:
+                    print(f"Erro salvar aquivo fator_equivalencia_{f}")
+                    print(e)
+                
+                print(f"Concluído {f}")
+            except:
+                print("Erro Geral")
 
     if mode=="concat":
         # Concatenar resumo
@@ -69,7 +72,7 @@ if __name__=="__main__":
             df_.insert(0,"file",f)
             df.append(df_)
         df = pd.concat(df,ignore_index=True)
-        df.to_excel("data/summary/equivalence_factor_23_06_25.xlsx",index=False)
+        df.to_excel("data/summary/equivalence_factor_Max15_26_06_25.xlsx",index=False)
 
     if mode=="test3":
         root_path = "data_ignore"
