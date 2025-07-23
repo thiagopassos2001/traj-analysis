@@ -21,7 +21,34 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "concat"
+    mode = "test2"
+
+    if mode=="count_by_type_lane":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        file_list = os.listdir("data/raw")
+
+        for i in file_list:
+            try:
+                # model = YoloMicroscopicDataProcessing()
+                # model.ImportFromJSON(f"data/json/{i}",post_processing=model.PostProcessing1)
+                df = pd.read_csv(f"data/raw/{i}")
+
+                df_agg = df.groupby("id").agg({"faixa":pd.Series.mode,"tipo":pd.Series.mode})
+                df_agg = df_agg.reset_index(drop=True)
+                df_agg["faixa"] = df_agg["faixa"].astype("str")
+                df_agg["tipo"] = df_agg["tipo"].astype("str")
+                df_agg["contador"] = 1
+                df_agg = df_agg.groupby(["faixa","tipo"]).agg({"contador":"sum"})
+                df_agg = df_agg.reset_index(drop=False)
+                df_agg.insert(0,"file",i)
+                df_agg["instante"] = df["instante"].max()/3600
+
+                df_agg.to_csv(f"data/count_by_type_lane/{i}",index=False)
+                print(f"{i} OK")
+            except Exception as e:
+                print(f"{i} deu errro",e)
 
     if mode=="FatEq":
         root_file = "data/json"
@@ -64,15 +91,15 @@ if __name__=="__main__":
 
     if mode=="concat":
         # Concatenar resumo
-        output_folder = 'data/equivalence_factor'
+        output_folder = 'data_ignore/data/count_by_type_lane'
         df = []
         all_files = os.listdir(output_folder)
         for f in all_files:
             df_ = pd.read_csv(os.path.join(output_folder,f))
-            df_.insert(0,"file",f)
+            # df_.insert(0,"file",f)
             df.append(df_)
         df = pd.concat(df,ignore_index=True)
-        df.to_excel("data/summary/equivalence_factor_Max15_26_06_25.xlsx",index=False)
+        df.to_excel("data_ignore/data/ContagemPorTipoFaixa.xlsx",index=False)
 
     if mode=="test3":
         root_path = "data_ignore"
@@ -91,7 +118,7 @@ if __name__=="__main__":
 
         df_parameter = pd.read_excel("data/Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
         df_parameter = df_parameter[df_parameter["id_voo"].isin(valid_id)]
-        df_parameter = df_parameter[df_parameter["tipo_local"]=="MQ"]
+        df_parameter = df_parameter[df_parameter["via"]=="X"]
 
         print(df_parameter["id_voo"].tolist())
 
@@ -102,6 +129,7 @@ if __name__=="__main__":
                 # ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
                 # limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
                 # limite_faixa.append(ll)
+                
                 limite_faixa = [[[0,i[0][-1]]]+i+[[1920,i[-1][-1]]] for i in limite_faixa]
                 print(limite_faixa)
 
