@@ -126,11 +126,11 @@ if __name__=="__main__":
             try:
                 print("Processando",row['id_voo'])
                 limite_faixa = eval(row["limite_faixa"])
-                # ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
-                # limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
-                # limite_faixa.append(ll)
+                ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
+                limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
+                limite_faixa.append(ll)
                 
-                limite_faixa = [[[0,i[0][-1]]]+i+[[1920,i[-1][-1]]] for i in limite_faixa]
+                # limite_faixa = [[[0,i[0][-1]]]+i+[[1920,i[-1][-1]]] for i in limite_faixa]
                 print(limite_faixa)
 
                 RunDataProcessingFromSheetType1(
