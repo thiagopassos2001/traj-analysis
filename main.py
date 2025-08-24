@@ -21,7 +21,210 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "test2"
+    mode = "FR2SMapping"
+
+    if mode=="CorridorClass":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        # Início do loop
+        for f in os.listdir("data/json"):
+            save_file_path = f"data/collected/motorcycle_virtual_lane/{f.replace('.json','.csv')}"
+            if not os.path.exists(save_file_path):
+                model = YoloMicroscopicDataProcessing()
+                model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+                def DropDup(sample):
+                    new_sample = []
+                    for i in sample:
+                        if i not in new_sample:
+                            new_sample.append(i)
+                    
+                    return new_sample
+
+                model.virtual_lane_lim = [DropDup(i) for i in model.virtual_lane_lim]
+
+                bd_support= pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Vídeos")
+                bd_support = bd_support[bd_support["id_video"]==f.split(".")[0]]
+                virtual_lane_lim = [int(i) for i in bd_support.astype(str)["cod_motofaixa"].values[0].split(",")]
+                traffic_lane_list = [int(i) for i in bd_support.astype(str)["cod_faixas"].values[0].split(",")]
+                
+                model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
+
+                df_motorcycle = model.df[model.df[model.vehicle_type_column].isin(['Moto'])].sort_values([model.frame_column,model.id_column])
+                df_motorcycle = df_motorcycle[["frame","id","x","y"]]
+                virtual_lane_width = 1.6
+
+                virutal_lane_group = {'Corredor Principal':virtual_lane_lim}
+                virutal_lane_group["Outros Corredores"] = [i for i in  range(1,len(model.virtual_lane_lim)+1) if i not in virutal_lane_group['Corredor Principal']]
+
+                # Qual corredor virual pertence (-1 para nenhum corredor)
+                df_motorcycle['virutal_lane'] = df_motorcycle.apply(lambda row:VirtualLaneDetector(row[model.x_centroid_column],row[model.y_centroid_column],model.virtual_lane_lim,virtual_lane_width),axis=1)
+                # Corredores não classificados recebem 0
+                df_motorcycle['zero_temp'] = ((-df_motorcycle['virutal_lane'].isin(JoinList(list(virutal_lane_group.values())))) & (df_motorcycle['virutal_lane']!=-1))
+                df_motorcycle['virutal_lane'] = df_motorcycle.apply(lambda x:x['virutal_lane'] if not x['zero_temp'] else 0,axis=1)
+                df_motorcycle = df_motorcycle.drop(columns=['zero_temp'])
+
+                # Tipo/nome do corredor
+                df_motorcycle['virtual_lane_type'] = np.nan
+                for key,value in virutal_lane_group.items():
+                    df_motorcycle['virtual_lane_type'] = df_motorcycle.apply(lambda x:key if x['virutal_lane'] in value else x['virtual_lane_type'],axis=1)
+                # Se for -1, estava na mais centralizado na faixa de tráfefo misto
+                df_motorcycle['virtual_lane_type'] = df_motorcycle.apply(lambda x:'Fora do Corredor' if x['virutal_lane']==-1 else x['virtual_lane_type'],axis=1)
+                # Se estava em outras faixas não avaliadas
+                df_motorcycle['virtual_lane_type'] = df_motorcycle.apply(lambda x:'Outro Corredor' if x['virutal_lane']==0 else x['virtual_lane_type'],axis=1)
+                df_motorcycle = df_motorcycle[['frame', 'id','virutal_lane', 'virtual_lane_type']]
+                
+                df_motorcycle.to_csv(save_file_path,index=False)
+                model.CreateJSON(f"data/json/{f}")
+                print("OK",f)
+            else:
+                print("OK",f,"já processado")
+
+    if mode=="speed_profile":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        # Início do loop
+        for f in os.listdir("data/json"):
+            save_file_path = f"data/collected/speed_profile/{f.replace('.json','.csv')}"
+            if not os.path.exists(save_file_path):
+                model = YoloMicroscopicDataProcessing()
+                model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+                bd_support= pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Vídeos")
+                bd_support = bd_support[bd_support["id_video"]==f.split(".")[0]]
+                virtual_lane_lim = [int(i) for i in bd_support.astype(str)["cod_motofaixa"].values[0].split(",")]
+                traffic_lane_list = [int(i) for i in bd_support.astype(str)["cod_faixas"].values[0].split(",")]
+                
+                model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
+
+                df_agg = model.df[model.df[model.vehicle_type_column].isin(['Moto'])]
+                df_agg = df_agg[df_agg['x'].between(3,model.video_width-3)].sort_values([model.frame_column,model.id_column])
+                df_agg = df_agg.groupby("id")["instant_speed"].describe().reset_index(drop=False)
+                df_agg["exceeded_speed_limitition"] = df_agg["max"]>(bd_support["lim_velocidade"].values[0]/3.6)
+                df_agg["exceeded_speed_limitition"] = df_agg["exceeded_speed_limitition"].astype(int)
+
+                df_agg.to_csv(save_file_path,index=False)
+                print("OK",f)
+            else:
+                print("Já processado",f)
+
+    if mode=="TrafficCondition":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        # Início do loop
+        for f in os.listdir("data/json"):
+            save_file_path = f"data/collected/traffic_conditions/{f.replace('.json','.csv')}"
+            if not os.path.exists(save_file_path):
+                model = YoloMicroscopicDataProcessing()
+                model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+
+                bd_support= pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Vídeos")
+                bd_support = bd_support[bd_support["id_video"]==f.split(".")[0]]
+                virtual_lane_lim = [int(i) for i in bd_support.astype(str)["cod_motofaixa"].values[0].split(",")]
+                traffic_lane_list = [int(i) for i in bd_support.astype(str)["cod_faixas"].values[0].split(",")]
+                
+                model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
+
+                df_agg = model.df[-model.df[model.vehicle_type_column].isin(['Moto'])].sort_values([model.frame_column,model.id_column])
+                df_agg = df_agg.groupby(model.frame_column)["instant_speed"].describe().reset_index(drop=False)
+                df_agg["traffic_condition"] = df_agg["mean"]<(10/3.6)
+                df_agg["traffic_condition"] = -df_agg["traffic_condition"]
+                df_agg["traffic_condition"] = df_agg["traffic_condition"].astype(int)
+
+                df_agg.to_csv(save_file_path,index=False)
+                print("OK",f)
+            else:
+                print("Já processado",f)
+
+    if mode=="check_dir_flow":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        if True:
+            for f in os.listdir("data/json"):
+                # if not os.path.exists(f"data/collected/count_flow_speed/{f.replace('.json','.csv')}"):
+                try:
+                    model = YoloMicroscopicDataProcessing()
+                    model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+                    traffic_lane_list = pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Coletas")
+                    traffic_lane_list = traffic_lane_list[traffic_lane_list["id_coleta"].astype(str)==f.split("_")[0]]
+                    traffic_lane_list = traffic_lane_list.astype(str)["cod_faixas"].values[0].split(",")
+                    traffic_lane_list = [int(i) for i in traffic_lane_list]
+
+                    df_check = model.df.copy()
+                    df_check = df_check[df_check["traffic_lane"].isin(traffic_lane_list)]
+                    df_check = df_check.groupby("id").agg(
+                        {
+                            "x":["first","last"]
+                        }
+                    ).reset_index(drop=False)
+                    df_check.columns = ["id","first","last"]
+                    df_check["diff"] = df_check["last"] - df_check["first"]
+                    print(df_check["diff"].mean())
+                    print("OK",f)
+                except Exception as e:
+                    print("Não OK",f)
+                    print(f"Erro: {e}")
+                # else:
+                #     print(f"Arquivo {f} já existe!")
+
+    if mode=="FR2SMapping":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        # Início do loop
+        for f in os.listdir("data/json"):
+            save_file_path = f"data/collected/motorcycle_fr2side/{f.replace('.json','.csv')}"
+            if not os.path.exists(save_file_path):
+                model = YoloMicroscopicDataProcessing()
+                model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+                bd_support= pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Vídeos")
+                bd_support = bd_support[bd_support["id_video"]==f.split(".")[0]]
+                virtual_lane_lim = [int(i) for i in bd_support.astype(str)["cod_motofaixa"].values[0].split(",")]
+                traffic_lane_list = [int(i) for i in bd_support.astype(str)["cod_faixas"].values[0].split(",")]
+                
+                model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
+
+                df_agg = model.df[model.df[model.vehicle_type_column].isin(['Moto'])]
+                df_agg = df_agg.apply(lambda row:model.FR2SMapping(row["id"],row["frame"]).iloc[0],axis=1,result_type="expand")
+
+                df_agg.to_csv(save_file_path,index=False)
+                print("OK",f)
+            else:
+                print("Já processado",f)
+
+    if mode=="sfd":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        if True:
+            for f in os.listdir("data/json"):
+                if not os.path.exists(f"data/collected/count_flow_speed/{f.replace('.json','.csv')}"):
+                    try:
+                        model = YoloMicroscopicDataProcessing()
+                        model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+                        traffic_lane_list = pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Coletas")
+                        traffic_lane_list = traffic_lane_list[traffic_lane_list["id_coleta"].astype(str)==f.split("_")[0]]
+                        traffic_lane_list = traffic_lane_list.astype(str)["cod_faixas"].values[0].split(",")
+                        traffic_lane_list = [int(i) for i in traffic_lane_list]
+
+                        result = model.SpeedFlowDensityAgg(step=3600,traffic_lane_list=traffic_lane_list)
+                        result = result.reset_index(level=[0],drop=True).T
+                        result.to_csv(f"data/collected/count_flow_speed/{f.replace('.json','.csv')}")
+
+                        print("OK",f)
+                    except Exception as e:
+                        print("Não OK",f)
+                        print(f"Erro: {e}")
+                else:
+                    print(f"Arquivo {f} já existe!")
 
     if mode=="count_by_type_lane":
         root_path = "data_ignore"
@@ -91,24 +294,47 @@ if __name__=="__main__":
 
     if mode=="concat":
         # Concatenar resumo
-        output_folder = 'data_ignore/data/count_by_type_lane'
+        output_folder = 'data_ignore/data/collected/count_flow_speed'
         df = []
         all_files = os.listdir(output_folder)
         for f in all_files:
-            df_ = pd.read_csv(os.path.join(output_folder,f))
-            # df_.insert(0,"file",f)
-            df.append(df_)
+            df_ = pd.read_csv(os.path.join(output_folder,f),index_col="Unnamed: 0")
+
+            df_agg = pd.DataFrame()
+            df_agg["file"] = [f]
+            print(f)
+
+            sum_count = df_.loc["count"].sum()
+            mean_speed = sum(df_.loc["count"]*df_.loc["speed"])/sum_count
+            
+            df_agg["count"] = sum_count
+            df_agg["speed"] = mean_speed
+            df_agg["motorcycle_count"] = df_.loc["count","Moto"]
+            df_agg["motorcycle_speed"] = df_.loc["speed","Moto"]
+            df_agg["motorcycle_perc"] = df_agg["motorcycle_count"]/df_agg["count"]
+
+            df.append(df_agg)
+            print(f"OK {f}")
         df = pd.concat(df,ignore_index=True)
-        df.to_excel("data_ignore/data/ContagemPorTipoFaixa.xlsx",index=False)
+        df.to_excel("data_ignore/data/collected/count_flow_speed.xlsx",index=False)
 
     if mode=="test3":
         root_path = "data_ignore"
         os.chdir(root_path)
-        model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON("data/json/79_B_2.json",post_processing=model.PostProcessing1)
+        df = pd.read_csv("data/collected/count_flow_speed/79_B_2.csv",index_col="Unnamed: 0")
+        df_agg = pd.DataFrame()
+        df_agg["file"] = ["a"]
 
-        print(model.HeadwayDeltaSpeed(304,int(55*30)))
+        sum_count = df.loc["count"].sum()
+        mean_speed = sum(df.loc["count"]*df.loc["speed"])/sum_count
         
+        df_agg["count"] = sum_count
+        df_agg["speed"] = mean_speed
+        df_agg["motorcycle_count"] = df.loc["count","Moto"]
+        df_agg["motorcycle_speed"] = df.loc["speed","Moto"]
+        
+        print(df_agg)
+
     if mode=="test2":
         root_path = "data_ignore"
         os.chdir(root_path)
@@ -116,39 +342,48 @@ if __name__=="__main__":
         file_list = os.listdir("data/raw")
         valid_id = ["_".join(i.split("_")[:-2]) for i in file_list]
 
-        df_parameter = pd.read_excel("data/Dados dos vídeos consolidados.xlsx",sheet_name='Coleta')
-        df_parameter = df_parameter[df_parameter["id_voo"].isin(valid_id)]
-        df_parameter = df_parameter[df_parameter["via"]=="X"]
+        df_parameter = pd.read_excel("data/Dados dos vídeos consolidados.xlsx",sheet_name='Vídeos')
+        df_parameter = df_parameter[df_parameter["id_video"].isin(valid_id)]
+        df_parameter = df_parameter[df_parameter["id_coleta"].isin([62])] # 62,
 
-        print(df_parameter["id_voo"].tolist())
+        print(df_parameter["id_video"].tolist())
 
         for index,row in df_parameter.iterrows():
-            try:
-                print("Processando",row['id_voo'])
-                limite_faixa = eval(row["limite_faixa"])
-                ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
-                limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
-                limite_faixa.append(ll)
-                
-                # limite_faixa = [[[0,i[0][-1]]]+i+[[1920,i[-1][-1]]] for i in limite_faixa]
-                print(limite_faixa)
+            if not os.path.exists(f"data/processed/{row['id_video']+'.csv'}"):
+                try:
+                    print("Processando",row['id_video'])
+                    lim_lane_mode = "2"
+                    limite_faixa = eval(row["limite_faixa"])
 
-                RunDataProcessingFromSheetType1(
-                    raw_file_path=os.path.join(f"data/raw/{row['id_voo']+"_transformed_rastreio.csv"}"),
-                    file_name=row["id_voo"],
-                    mpp=float(row["mpp"]),
-                    flip_h=True if row["fluxo"]!="→" else False,
-                    virtual_lane_lim=limite_faixa,
-                    image_reference=row["img_ref"]
-                )
+                    if not lim_lane_mode in ["1","2"]:
+                        raise ValueError(f"{lim_lane_mode} inválido")
 
-                model = YoloMicroscopicDataProcessing()
-                model.ImportFromJSON(f"data/json/{row['id_voo']}.json")
-                model_smoothed = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
-                model_smoothed.to_csv(f"data/suavizado/{row['id_voo']}.csv",index=False)
-                print("Fim",row['id_voo'])
-            except Exception as e:
-                print(e)
+                    if lim_lane_mode=="1":
+                        ll = [[0,limite_faixa[-1][-1]],[1920,limite_faixa[-1][-1]]]
+                        limite_faixa = [[[0,i[0]],[1920,i[0]]] for i in eval(row["limite_faixa"])]
+                        limite_faixa.append(ll)
+                    if lim_lane_mode=="2":
+                        limite_faixa = [[[0,i[0][-1]]]+i+[[1920,i[-1][-1]]] for i in limite_faixa]
+                    
+                    print(limite_faixa)
+                    print("FLIPH",row["fluxo"],True if row["fluxo"]!="→" else False)
+
+                    RunDataProcessingFromSheetType1(
+                        raw_file_path=os.path.join(f"data/raw/{row['id_video']+"_transformed_rastreio.csv"}"),
+                        file_name=row["id_video"],
+                        mpp=float(row["mpp"]),
+                        flip_h=True if row["fluxo"]!="→" else False,
+                        virtual_lane_lim=limite_faixa,
+                        image_reference=row["img_ref"]
+                    )
+
+                    model = YoloMicroscopicDataProcessing()
+                    model.ImportFromJSON(f"data/json/{row['id_video']}.json")
+                    model_smoothed = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
+                    model_smoothed.to_csv(f"data/suavizado/{row['id_video']}.csv",index=False)
+                    print("Fim",row['id_video'])
+                except Exception as e:
+                    print(e)
     
     if mode=="rerun":
         root_path = "data_ignore"

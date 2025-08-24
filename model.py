@@ -1092,6 +1092,9 @@ class  YoloMicroscopicDataProcessing:
         project_verification:bool=False
         ):
 
+        if id_vehicle not in self.df[self.id_column].tolist():
+            raise ValueError(f"O id '{id_vehicle}' não consta nas trajetórias!")
+
         # abs(instant_reference_adjust-instant_reference)<0.1
         # Quadro de análise no instante de referencia
         df_analyzed = self.df[self.df[self.frame_column]==frame].sort_values(self.frame_column)
@@ -3399,7 +3402,7 @@ class  YoloMicroscopicDataProcessing:
             ):
         """
         Calcula em que momento o veículo cruza a seção
-        Retorna a linha do dataframe se cruzar e um dataframe vazio se não cruzar
+        Retorna a linha do dataframe se cruzar e um dataframe vazio se não cruzar (ou se houver apenas uma observação)
         """
 
         # Ajusta as colunas padrão
@@ -3409,6 +3412,9 @@ class  YoloMicroscopicDataProcessing:
             y_column = self.y_centroid_column
 
         df_analysis = self.df[self.df[self.id_column]==vehicle_id].sort_values(self.frame_column)
+        # Verifica se há mais de uma observação
+        if len(df_analysis)<2:
+            return pd.DataFrame()
 
         # Linha de trajetória do veículo a partir do frame
         df_analysis["coords"] = df_analysis.apply(lambda x:(x[x_column],x[y_column]),axis=1)
@@ -3416,6 +3422,7 @@ class  YoloMicroscopicDataProcessing:
         # Cria o geodataframe
         df_analysis = gpd.GeoDataFrame(df_analysis,geometry="geometry",crs="EPSG:31984")
         
+        # print(vehicle_id,df_analysis["coords"].tolist())
         # Geometria da linha
         df_analysis_line = shapely.LineString(df_analysis["coords"].tolist())
         
@@ -4518,6 +4525,120 @@ class  YoloMicroscopicDataProcessing:
 
         return df_analyzed
 
+    def FR2SMapping(
+        self,
+        id_vehicle,
+        frame,
+    ):
+        df_agg = pd.DataFrame()
+        df_agg[self.id_column] = [id_vehicle]
+        df_agg[self.frame_column] = [frame]
+
+        VehicleFront = self.FirstVehicleAhead(
+            id_vehicle=id_vehicle,
+            frame=frame,
+            side_offset_vehicle=-0.1
+        )
+
+        VehicleRear = self.FirstVehicleBehind(
+            id_vehicle=id_vehicle,
+            frame=frame,
+            side_offset_vehicle=-0.1
+        )
+
+        Vehicle2Side = self.SideVehicle(
+            id_vehicle=id_vehicle,
+            frame=frame,
+            overlap_lon=0.3,
+            overlap_lat=0.3,
+        )
+
+        if VehicleFront.empty:
+            df_agg["front"] = [np.nan]
+            df_agg["dist_front"] = [np.nan]
+        else:
+            df_agg["front"] = [VehicleFront[self.id_column].values[0]]
+            df_agg["dist_front"] = [VehicleFront["distance_between_vehicles"].values[0]]
+        
+        if VehicleRear.empty:
+            df_agg["rear"] = [np.nan]
+            df_agg["dist_rear"] = [np.nan]
+        else:
+            df_agg["rear"] = [VehicleRear[self.id_column].values[0]]
+            df_agg["dist_rear"] = [VehicleRear["distance_between_vehicles"].values[0]]
+        
+        if not "right" in Vehicle2Side["side"].tolist():
+            df_agg["right"] = [np.nan]
+            df_agg["dist_right"] = [np.nan]
+        else:
+            V2S_right = Vehicle2Side[Vehicle2Side["side"]=="right"].sort_values(by="lateral_distance_between_vehicles")
+            
+            df_agg["right"] = [V2S_right[self.id_column].values[0]]
+            df_agg["dist_right"] = [V2S_right["lateral_distance_between_vehicles"].values[0]]
+        
+        if not "left" in Vehicle2Side["side"].tolist():
+            df_agg["left"] = [np.nan]
+            df_agg["dist_left"] = [np.nan]
+        else:
+            V2S_left = Vehicle2Side[Vehicle2Side["side"]=="left"].sort_values(by="lateral_distance_between_vehicles")
+            
+            df_agg["left"] = [V2S_left[self.id_column].values[0]]
+            df_agg["dist_left"] = [V2S_left["lateral_distance_between_vehicles"].values[0]]
+        
+        print("OK",id_vehicle,frame)
+        return df_agg
+
+    def SpeedFlowDensityAgg(
+        self,
+        step=60,
+        section=None,
+        start_frame=None,
+        last_frame=None,
+        traffic_lane_list=None,
+        ):
+        
+        if section==None:
+            section = shapely.LineString([[
+                self.video_width*0.5,self.video_heigth],
+                [self.video_width*0.5,0]
+                ])
+
+        delta_time = (self.df[self.frame_column].max()/self.fps)/3600
+        count_to_flow = lambda sample: sample.nunique()/delta_time
+
+        # Veículos cruzando a seção
+        df_analysis = self.GroupVechiclesCrossingSection(section=section)
+        if traffic_lane_list!=None:
+            df_analysis = df_analysis[df_analysis[self.traffic_lane_column].isin(traffic_lane_list)]
+
+        df_analysis = df_analysis.merge(self.df[[
+            self.frame_column,
+            self.id_column,
+            self.instant_speed_column
+            ]],
+            on=[self.frame_column,self.id_column],
+            how="left")
+
+        df_analysis.insert(0,"step",(df_analysis[self.frame_column]/self.fps)/step)
+        df_analysis["step"] = df_analysis["step"].astype(int).astype(str)
+        df_analysis[self.instant_speed_column] = df_analysis[self.instant_speed_column]*3.6
+
+        # Agragação
+        df_agg = pd.pivot_table(
+            data=df_analysis,
+            values=[self.id_column,self.instant_speed_column],
+            index=["step",self.vehicle_type_column],
+            # columns=[], # self.traffic_lane_column,
+            aggfunc={
+                self.id_column:[count_to_flow,"nunique",], # "nunique" to count and "unique" to check
+                self.instant_speed_column:"mean"}
+        )
+
+        df_agg.columns = ["volume","count","speed"]
+        df_agg = df_agg[["count","volume","speed"]]
+        df_agg["density"] = df_agg["volume"] / df_agg["speed"]
+
+        return df_agg
 
 # Fluxo de execução para trabalhar com múltiplos arquivos
 # Copiar o padrão de alterar
@@ -4902,7 +5023,9 @@ def RunDataProcessingFromSheetType1(
         model.df[model.vehicle_width_column] = model.df[model.p2_y_bb_column]-model.df[model.p1_y_bb_column]
 
         # Rotação horizontal se necessário
+        print(model.flip_h,"INTERRNO")
         if model.flip_h:
+            print("Não devo aparecer")
             # Coordenada horizontal à esquerda
             model.df[model.p1_x_bb_column] = model.video_width - model.df[model.p1_x_bb_column] - model.df[model.vehicle_length_column]
             # Recalculo do ponto à direita
