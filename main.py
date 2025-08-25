@@ -21,7 +21,105 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "FR2SMapping"
+    mode = "overtaking"
+
+    if mode=="overtaking":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        # Início do loop
+        for f in os.listdir("data/json"):
+            try:
+                save_file_path = f"data/collected/motorcycle_overtaking/{f.replace('.json','.csv')}"
+                if not os.path.exists(save_file_path):
+                    model = YoloMicroscopicDataProcessing()
+                    model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+                    bd_support= pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Vídeos")
+                    bd_support = bd_support[bd_support["id_video"]==f.split(".")[0]]
+                    virtual_lane_lim = [int(i) for i in bd_support.astype(str)["cod_motofaixa"].values[0].split(",")]
+                    traffic_lane_list = [int(i) for i in bd_support.astype(str)["cod_faixas"].values[0].split(",")]
+                    
+                    model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
+
+                    motorcycle_fr2side = pd.read_csv(f"data/collected/motorcycle_fr2side/{f.replace('.json','.csv')}")
+
+                    df_agg_motorcycle_overtaking = motorcycle_fr2side.groupby("id").agg({
+                        "front":"unique",
+                        "rear":"unique",
+                        "left":"unique",
+                        "right":"unique"
+                    }).reset_index()
+
+                    df_overtaking = {
+                        "id":[],
+                        "id_front":[],
+                        "frame":[],
+                        "OD":[],
+                        "overtaking_complete":[],
+                        "min_TTC":[],
+                        "dv":[],
+                        "H":[],
+                    }
+
+                    for index,row in df_agg_motorcycle_overtaking.iterrows():
+                        for front in row["front"]:
+                            if front!="nan":
+                                if front in row["right"]:
+                                    is_overtaking = True
+                                    side = "right"
+                                elif front in row["left"]:
+                                    is_overtaking = True
+                                    side = "left"
+                                else:
+                                    is_overtaking = False
+                                
+                                if is_overtaking:
+                                    mask_follower = motorcycle_fr2side["id"]==row["id"]
+                                    mask_leader_front = motorcycle_fr2side["front"]==front
+                                    mask_leader_side = motorcycle_fr2side[side]==front
+
+                                    # TTC
+                                    df_overtaking_front = motorcycle_fr2side[mask_follower & mask_leader_front].copy()
+
+                                    df_overtaking_front = df_overtaking_front.merge(model.df[["id","frame","x_instant_speed"]],on=["id","frame"],how="left")
+                                    df_overtaking_front = df_overtaking_front.merge(model.df[["id","frame","x_instant_speed"]].rename(columns={"id":"front"}),on=["front","frame"],how="left",suffixes=("_follower","_leader"))
+
+                                    df_overtaking_front["TTC"] = df_overtaking_front["dist_front"]/(df_overtaking_front["x_instant_speed_follower"]-df_overtaking_front["x_instant_speed_leader"])
+
+                                    min_TTC = df_overtaking_front[df_overtaking_front["TTC"]>0]["TTC"].min()
+
+                                    # H and delta_speed
+                                    df_overtaking_side = motorcycle_fr2side[mask_follower & mask_leader_side].copy()
+
+                                    df_overtaking_side = df_overtaking_side.merge(model.df[["id","frame","x_instant_speed"]],on=["id","frame"],how="left")
+                                    df_overtaking_side = df_overtaking_side.merge(model.df[["id","frame","x_instant_speed"]].rename(columns={"id":side}),on=[side,"frame"],how="left",suffixes=("_follower","_leader"))
+
+                                    df_overtaking_side["dv"] = df_overtaking_front["x_instant_speed_follower"]-df_overtaking_front["x_instant_speed_leader"]
+                                    dv = df_overtaking_side["dv"].mean()
+                                    H = df_overtaking_side["dist_"+side].mean()
+
+                                    # Overtaking duration
+                                    overtakink_start_frame = df_overtaking_side["frame"].min()
+                                    overtakink_end_frame = df_overtaking_side["frame"].max()
+                                    OD = (overtakink_end_frame-overtakink_start_frame)/30
+                                    overtaking_complete = True if motorcycle_fr2side[mask_follower].copy()["frame"].max()>overtakink_end_frame else False
+
+                                    df_overtaking["id"].append(row["id"])
+                                    df_overtaking["id_front"].append(front)
+                                    df_overtaking["frame"].append(overtakink_start_frame)
+                                    df_overtaking["OD"].append(OD)
+                                    df_overtaking["overtaking_complete"].append(overtaking_complete)
+                                    df_overtaking["min_TTC"].append(min_TTC)
+                                    df_overtaking["dv"].append(dv)
+                                    df_overtaking["H"].append(H)
+
+                    df_overtaking = pd.DataFrame.from_dict(df_overtaking)
+                    df_overtaking.to_csv(save_file_path,index=False)
+
+                    print("OK",f)
+            except Exception as e:
+                print("Buxo",f)
 
     if mode=="CorridorClass":
         root_path = "data_ignore"
