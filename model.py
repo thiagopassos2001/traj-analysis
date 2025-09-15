@@ -4639,6 +4639,32 @@ class  YoloMicroscopicDataProcessing:
         df_agg["density"] = df_agg["volume"] / df_agg["speed"]
 
         return df_agg
+    
+    def SpeedCountByFrame(
+        self,
+        ):
+        
+
+        # df_agg = self.df.copy().grouby([
+        #     self.frame_column,
+        #     self.traffic_lane_column,
+        #     self.vehicle_type_column
+        #     ])[self.x_instant_speed_column].describe().reset_index(drop=False)
+        # df_agg["density"] = df_agg["count"]/self.video_width
+
+        # Agragação
+        df_agg = pd.pivot_table(
+            data=self.df.copy(),
+            values=[self.x_instant_speed_column],
+            index=[self.frame_column,],
+            columns=[self.traffic_lane_column,self.vehicle_type_column],
+            aggfunc={self.x_instant_speed_column:["count","mean"]}
+            )
+
+        df_agg.columns = ["_".join([str(j) for j in i]) for i in df_agg.columns]
+        df_agg["lenght"] = self.video_width
+
+        return df_agg
 
 # Fluxo de execução para trabalhar com múltiplos arquivos
 # Copiar o padrão de alterar
