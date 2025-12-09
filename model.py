@@ -3497,7 +3497,9 @@ class  YoloMicroscopicDataProcessing:
 
         vehicle_id_list = self.df[(self.df[self.frame_column].between(start_frame,last_frame)) & (-self.df[self.vehicle_type_column].isin(ignore_vehicle_types_list))]
         vehicle_id_list = vehicle_id_list[self.id_column].unique().tolist()
+
         df = []
+        print(section)
         for vehicle_id in vehicle_id_list:
             
             row = self.VechicleCrossingSection(
@@ -3509,6 +3511,7 @@ class  YoloMicroscopicDataProcessing:
             df.append(row)
         
         df = pd.concat(df,ignore_index=True)
+        print(df)
         # Filtra os limites para remover veículos que passaram na seção,
         # Mas fora dos frames indicados
         df = df[df[self.frame_column].between(start_frame,last_frame)].sort_values(self.frame_column)

@@ -22,7 +22,114 @@ start_timer = timeit.default_timer()
 # model_smoothed.to_csv("output.csv",index=False)
 
 if __name__=="__main__":
-    mode = "speed_x_deltaV"
+    mode = "headway_space"
+
+    if mode=="headway_space":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        # Início do loop
+        for f in os.listdir("data/json"):
+            try:
+                save_file_path = f"data/collected/headway_space/{f.replace('.json','.csv')}"
+                if not os.path.exists(save_file_path):
+                    model = YoloMicroscopicDataProcessing()
+                    model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+                    bd_support= pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Vídeos")
+                    bd_support = bd_support[bd_support["id_video"]==f.split(".")[0]]
+                    bd_support = bd_support.merge(pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Coletas")[["id_coleta","cod_motofaixa","cod_faixas","faixa_1","faixa_2"]],on="id_coleta",how="left")
+                    virtual_lane_lim = [int(i) for i in bd_support.astype(str)["cod_motofaixa"].values[0].split(",")]
+                    traffic_lane_list = [int(i) for i in bd_support.astype(str)["cod_faixas"].values[0].split(",")]
+                    
+                    model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
+
+                    motorcycle_fr2side = pd.read_csv(f"data/collected/motorcycle_fr2side/{f.replace('.json','.csv')}")
+                    # motorcycle_fr2side["dist_front"] = motorcycle_fr2side["dist_front"].fillna(model.video_width)
+                    motorcycle_fr2side = motorcycle_fr2side.dropna(subset="dist_front")
+                    df_agg_motorcycle_overtaking = motorcycle_fr2side.groupby("id").agg({
+                        "dist_front":["describe"],
+                    }).reset_index()
+                    df_agg_motorcycle_overtaking.columns = ["id",]+["headway_"+i for i in ["count","mean","std","min","25%","median","75%","max"]]
+
+                    df_agg_motorcycle_overtaking.to_csv(save_file_path,index=False)
+                    print("OK",f)
+            except Exception as e:
+                print("Buxo",f)
+
+    if mode=="headway_by_section":
+        root_path = "data_ignore"
+        os.chdir(root_path)
+
+        # Início do loop
+        for f in os.listdir("data/json"):
+            # try:
+            save_file_path = f"data/collected/headway_by_section/{f.replace('.json','.csv')}"
+            if not os.path.exists(save_file_path):
+                model = YoloMicroscopicDataProcessing()
+                model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
+
+                bd_support= pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Vídeos")
+                bd_support = bd_support[bd_support["id_video"]==f.split(".")[0]]
+                bd_support = bd_support.merge(pd.read_excel(f"data/Dados dos vídeos consolidados.xlsx",sheet_name="Coletas")[["id_coleta","cod_motofaixa","cod_faixas","faixa_1","faixa_2"]],on="id_coleta",how="left")
+                virtual_lane_lim = [int(i) for i in bd_support.astype(str)["cod_motofaixa"].values[0].split(",")]
+                traffic_lane_list = [int(i) for i in bd_support.astype(str)["cod_faixas"].values[0].split(",")]
+                
+                model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
+                
+                x_crossing_section = model.video_width*(3/4)
+                delta_x = 0.8
+                print(virtual_lane_lim[0])
+
+                if len(virtual_lane_lim)<=1:
+                    line_center = PolygonalToFunction(model.virtual_lane_lim[virtual_lane_lim[0]-1])(x_crossing_section)
+                    upper_line = line_center - delta_x
+                    lower_line = line_center + delta_x
+                else:
+                    l1 = PolygonalToFunction(model.virtual_lane_lim[virtual_lane_lim[0]-1])(x_crossing_section)
+                    l2 = PolygonalToFunction(model.virtual_lane_lim[virtual_lane_lim[1]-1])(x_crossing_section)
+
+                    if l1<l2:
+                        upper_line = l1 - delta_x
+                        lower_line = l2 + delta_x
+                    else:
+                        upper_line = l1 + delta_x
+                        lower_line = l2 - delta_x
+
+                print(x_crossing_section,upper_line,lower_line)
+
+                section1 = shapely.LineString([[x_crossing_section,lower_line],[x_crossing_section,upper_line]])
+                section2 = shapely.LineString([[model.video_width*(1/4),lower_line],[model.video_width*(1/4),upper_line]])
+
+                # Veículos cruzando a seção
+                df1 = model.GroupVechiclesCrossingSection(section=section1,alignment_check=False)
+                df2 = model.GroupVechiclesCrossingSection(section=section2,alignment_check=False)
+
+                df1 = df1[["id","frame","instant","vehicle_type","x","y"]].reset_index(drop=True)
+                count_timer = 0
+
+                for index,row in df1.iterrows():
+                    if index==0:
+                        df1.loc[index,"valid"] = 0.5
+                    if index > 0:
+                        if df1.loc[index-1,"valid"]==0:
+                            df1.loc[index,"valid"] = 0.5
+                        if not row["id"] in df2["id"].tolist():
+                            df1.loc[index,"valid"] = 0
+                        if row["vehicle_type"]!="Moto":
+                            df1.loc[index,"valid"] = 0
+                        else:
+                            df1.loc[index,"valid"] = 1
+                    
+                    df1.loc[index,"headway"] = row["instant"] - count_timer
+                    count_timer = row["instant"]
+
+                df1["valid"] = df1["valid"].astype(int)
+                df1.to_csv(save_file_path,index=False)
+                
+                print("OK",f)
+            # except Exception as e:
+            #     print("Buxo",f)
 
     if mode=="speed_x_deltaV":
         root_path = "data_ignore"
@@ -55,7 +162,6 @@ if __name__=="__main__":
                     print("OK",f)
             except Exception as e:
                 print("Buxo",f)
-
 
     if mode=="width_lane":
         root_path = "data_ignore"
@@ -546,7 +652,7 @@ if __name__=="__main__":
         # Início do loop
         for f in os.listdir("data/json"):
             save_file_path = f"data/collected/motorcycle_virtual_lane/{f.replace('.json','.csv')}"
-            if not os.path.exists(save_file_path):
+            if not os.path.exists(save_file_path) and "21_" in f:
                 model = YoloMicroscopicDataProcessing()
                 model.ImportFromJSON(f"data/json/{f}",post_processing=model.PostProcessing1)
 
