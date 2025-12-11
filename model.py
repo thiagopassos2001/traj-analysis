@@ -321,11 +321,11 @@ class  YoloMicroscopicDataProcessing:
             df_ = df_[df_[self.id_column]==i]
 
             if df_[self.vehicle_type_column].values[0]=="Bicicleta":
-                # ax.plot(df_["x"]/self.mpp,df_["y"]/self.mpp,color="blue",linewidth=0.75)
-                ax.scatter(df_["x"]/self.mpp,df_["y"]/self.mpp,c=df_["instant_speed"]*3.6,cmap='Blues',marker="*")
+                ax.plot(df_["x"]/self.mpp,df_["y"]/self.mpp,color="blue",linewidth=0.75)
+                # ax.scatter(df_["x"]/self.mpp,df_["y"]/self.mpp,c=df_["instant_speed"]*3.6,cmap='Blues',marker="*")
             else:
-                # ax.plot(df_["x"]/self.mpp,df_["y"]/self.mpp,color="red",linewidth=0.75)
-                ax.scatter(df_["x"]/self.mpp,df_["y"]/self.mpp,c=df_["instant_speed"]*3.6,cmap='Reds')
+                ax.plot(df_["x"]/self.mpp,df_["y"]/self.mpp,color="red",linewidth=0.75)
+                # ax.scatter(df_["x"]/self.mpp,df_["y"]/self.mpp,c=df_["instant_speed"]*3.6,cmap='Reds')
 
         # # Toma as coordenadas das regiões e transforma para o tamanho da imagem
         # self.regions.plot(color='blue', edgecolor='black', ax=ax)
