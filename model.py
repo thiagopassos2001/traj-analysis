@@ -47,6 +47,7 @@ class  YoloMicroscopicDataProcessing:
         self.state_column = 'state'
         self.queue_position_column = 'queue_position'
         self.traffic_lane_column = 'traffic_lane'
+        self.traffic_region_column = "traffic_region"
         self.virtual_traffic_lane_column = 'virtual_traffic_lane'
 
         #-----------------------------------------------------------------------
@@ -116,6 +117,8 @@ class  YoloMicroscopicDataProcessing:
         self.parameter_file = ""
         self.motorcycle_waiting_area_polygon = pd.DataFrame(columns=["id","coords"])
         self.traffic_lane_polygon = pd.DataFrame(columns=["id","coords"])
+        self.conflict_zones = pd.DataFrame(columns=["id","coords"])
+        self.regions = pd.DataFrame(columns=["id","coords"])
 
         #-----------------------------------------------------------------------
 
@@ -291,6 +294,50 @@ class  YoloMicroscopicDataProcessing:
 
         return True
     
+    def SaveImg(self,id_list=None):
+        """
+        Salva uma imagem com os poligonos existentes
+        """
+        # Estrutura o nome para salvar o arquivo
+        ext_file = os.path.splitext(self.image_reference)[-1]
+        savefig_file = self.image_reference.replace(ext_file,f"_region{ext_file}")
+
+        # Lê a imagem de fundo e invere horizontalmente se for conveniente
+        img = plt.imread(self.image_reference)
+        # img = np.flip(img,axis=1)
+
+        # Cria o ax
+        fig, ax = plt.subplots(figsize=(16*1.6243654822,9*1.6243654822))
+        # Remove os eixos
+        ax.axis('off')
+        # Coloca a imagem de fundo
+        ax.imshow(img)
+        
+        if id_list==None:
+            id_list = self.df[self.id_column].unique()
+
+        for i in id_list:
+            df_ = self.df.copy()
+            df_ = df_[df_[self.id_column]==i]
+
+            if df_[self.vehicle_type_column].values[0]=="Bicicleta":
+                # ax.plot(df_["x"]/self.mpp,df_["y"]/self.mpp,color="blue",linewidth=0.75)
+                ax.scatter(df_["x"]/self.mpp,df_["y"]/self.mpp,c=df_["instant_speed"]*3.6,cmap='Blues',marker="*")
+            else:
+                # ax.plot(df_["x"]/self.mpp,df_["y"]/self.mpp,color="red",linewidth=0.75)
+                ax.scatter(df_["x"]/self.mpp,df_["y"]/self.mpp,c=df_["instant_speed"]*3.6,cmap='Reds')
+
+        # # Toma as coordenadas das regiões e transforma para o tamanho da imagem
+        # self.regions.plot(color='blue', edgecolor='black', ax=ax)
+        # self.conflict_zones.plot(color='red', edgecolor='black', ax=ax)
+
+        # Salva a imagem sem bordas
+        plt.savefig(savefig_file,bbox_inches='tight',pad_inches=0,dpi=96)
+        # Limpa as configurações e plots feitos
+        plt.clf()
+
+        return True
+    
     def ScalePxToMeterPolygon(self,geom):
         """
         Escala a geometia de pixels para metros
@@ -318,6 +365,31 @@ class  YoloMicroscopicDataProcessing:
             "width_virtual_lane":self.width_virtual_lane,
             "virtual_lane_lim":[[[int(i[0]/self.mpp),int(i[-1]/self.mpp)] for i in j] for j in self.virtual_lane_lim],
             "traffic_lane_polygon":self.traffic_lane_polygon[["id","coords"]].to_dict("list"),
+            "green_open_time":self.green_open_time,
+            "image_reference": f"data/image/{os.path.basename(str(self.image_reference))}",  # Alguns dados foram colocados como só o número do frame
+            "flip_h":self.flip_h,
+            "flip_v":self.flip_v,
+        }
+
+        # Salvar arquivo        
+        with open(file_path,'w',encoding="utf-8",errors="ignore") as f:  
+            json.dump(cfg,f,indent=4)
+    
+    def CreateJSON2(self,file_path):
+        """
+        VERSÃO 2 11/12/2025
+        Export o arquivo ".json" padronizado
+        Retorna True se todas as operações forem realizadas
+        """
+
+        cfg = {
+            "raw_file": f"data/raw/{os.path.basename(self.raw_file)}",
+            "processed_file": f"data/processed/{os.path.basename(self.processed_file)}",
+            "mpp":self.mpp,
+            "video_width": int(self.video_width/self.mpp),
+            "video_heigth": int(self.video_heigth/self.mpp),
+            "regions":self.regions[["id","coords"]].to_dict("list"),
+            "conflict_zones":self.conflict_zones[["id","coords"]].to_dict("list"),
             "green_open_time":self.green_open_time,
             "image_reference": f"data/image/{os.path.basename(str(self.image_reference))}",  # Alguns dados foram colocados como só o número do frame
             "flip_h":self.flip_h,
@@ -459,6 +531,111 @@ class  YoloMicroscopicDataProcessing:
         self.raw_file = cfg["raw_file"]
         self.processed_file = cfg["processed_file"]
         self.parameter_file = cfg["parameter_file"]
+        self.image_reference = cfg["image_reference"]
+
+        # Inversões já aplicadas aos dados
+        self.flip_h = cfg["flip_h"]
+        self.flip_v = cfg["flip_v"]
+
+        # Tenta atribuir o arquivo
+        try:
+            self.df = pd.read_csv(self.processed_file)
+            self.df[self.id_column] = self.df[self.id_column].astype(int)
+            self.df[self.frame_column] = self.df[self.frame_column].astype(int)
+            # self.df[self.traffic_lane_column] = self.df[self.traffic_lane_column].astype(int)
+
+            if post_processing!=None:
+                post_processing()
+        except:
+            self.df = pd.DataFrame()
+            print("Trajetórias ainda não processadas!")
+        finally:
+            # Atualiza o json
+            with open(file_path,'w',encoding="utf-8",errors="ignore") as f:  
+                json.dump(cfg,f,indent=4)
+
+    def ImportFromJSON2(self,file_path,post_processing=None):
+        """
+        VERSÃO 2 - 11/12/2025
+        Puxa os dados e metadados de um arquivo .json padronizado
+        Retorna True se todas as operações forem realizadas
+        """
+        # Lê o json
+        with open(file_path,encoding="utf-8",errors="ignore") as f:
+            cfg = json.load(f)
+
+        # Verifica se o json possui as colunas mínimas
+        req_keys = [
+            'processed_file',
+            'mpp',
+            'video_width',
+            'video_heigth',
+            'regions',
+            'conflict_zones',
+            'green_open_time',
+            'image_reference'
+        ]
+        for col in req_keys:
+            if col not in cfg.keys():
+                raise ValueError(f"O parâmetro {col} não consta no arquivo '.json'.")
+        
+        # Compatibilização de padrões
+        #----------------------------------------------------------------------------------
+        # Verifica se o campo "motorcycle_waiting_area_polygon", se for vazio,
+        # constrói o polígono por meio de uma informação obsoleta
+        # "motobox_start_section" e "motobox_end_section"
+        if cfg["conflict_zones"]=={"id": {},"coords": {}}:
+            # Coordenadas organizadas com base nos limites do motobox
+            mwa_polygon_coords = self.MotorcycleWaitingAreaCoordsFromSEH0(
+                cfg["motobox_start_section"],
+                cfg["motobox_end_section"],
+                cfg["video_heigth"])
+            
+            # Atualiza dicionário como um outro dicionário
+            cfg["conflict_zones"] = dict(zip(["id","coords"],[["1"],[mwa_polygon_coords]]))
+        
+        # Verifica se o campo "traffic_lane_polygon", se for vazio
+        # constrói o polígono por meio de uma informação obsoleta
+        # "virtual_lane_lim"
+        if cfg["regions"]=={"id": {},"coords": {}}:
+            traffic_lane_polygon_coords = [
+                self.TrafficLaneCoordsFromLimits(i,j)
+                for i,j in zip(cfg["virtual_lane_lim"][:-1],cfg["virtual_lane_lim"][1:])]
+            num_traffic_lanes = len(traffic_lane_polygon_coords)
+            id_traffic_lane = [str(i) for i in  range(1,num_traffic_lanes+1)]
+            # Atualiza dicionário
+            cfg["regions"] = dict(zip(["id","coords"],[id_traffic_lane,traffic_lane_polygon_coords]))
+        
+        # Fim das compatibilizações e ajustes
+        #----------------------------------------------------------------------------------
+
+        # Atribui o fator de escala
+        self.mpp = cfg["mpp"]
+
+        # Regions
+        self.regions = gpd.GeoDataFrame(
+            cfg["regions"],
+            geometry=[shapely.Polygon(i) for i in cfg["regions"]["coords"]],
+            crs="EPSG:31984")
+        self.regions["geometry"] = self.regions["geometry"].apply(self.ScalePxToMeterPolygon)
+
+        # Conflict zones
+        self.conflict_zones = gpd.GeoDataFrame(
+            cfg["conflict_zones"],
+            geometry=[shapely.Polygon(i) for i in cfg["conflict_zones"]["coords"]],
+            crs="EPSG:31984")
+        self.conflict_zones["geometry"] = self.conflict_zones["geometry"].apply(self.ScalePxToMeterPolygon)
+
+        # Atribuir dimensões do vídeo
+        self.video_heigth = cfg["video_heigth"]*self.mpp
+        self.video_width = cfg["video_width"]*self.mpp
+
+        # Instantes em que o verde abre
+        self.green_open_time = cfg['green_open_time']
+
+        # Nomes dos arquivos
+        self.raw_file = cfg["raw_file"]
+        self.processed_file = cfg["processed_file"]
         self.image_reference = cfg["image_reference"]
 
         # Inversões já aplicadas aos dados
@@ -4901,12 +5078,12 @@ def RunDataProcessingFromParameterType1(file_path,force_processing=False):
                                     geometry=gpd.points_from_xy(model.df[model.x_centroid_column],model.df[model.y_centroid_column]),
                                     crs="EPSG:31984")
 
-        model.df = model.df.overlay(model.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union',)
+        model.df = model.df.overlay(model.traffic_lane_polygon.rename(columns={"id":"polygon"})[["polygon","geometry"]],how='union',)
         # Remover casos duplicados em "tl_polygon"
         model.df = model.df.drop_duplicates(subset=[model.id_column,model.frame_column],keep="first")
         # Atribui a faixa ajustada
-        model.df[model.traffic_lane_column] = model.df["tl_polygon"]
-        model.df = pd.DataFrame(model.df.drop(columns=["tl_polygon","geometry"]))
+        model.df[model.traffic_lane_column] = model.df["polygon"]
+        model.df = pd.DataFrame(model.df.drop(columns=["polygon","geometry"]))
 
 
         # Cálculo de posições estrátégicas longitudinais o veículo
@@ -5118,6 +5295,199 @@ def RunDataProcessingFromSheetType1(
     else:
         print(model.processed_file, "já processado!")
 
+def RunDataProcessingType2(
+    raw_file_path,
+    file_name,
+    mpp,
+    image_reference,
+    id_regions=[],
+    regions=[],
+    id_conflict_zones=[],
+    conflict_zones=[],
+    fps=30,
+    video_heigth=1080,
+    video_width=1920,
+    flip_h=False,
+    flip_v=False,
+    green_open_time=[0],
+    force_processing=False):
+
+    # start_timer = timeit.default_timer()
+
+    # print(f"Processando... {raw_file_path}")
+
+    model = YoloMicroscopicDataProcessing()
+    
+    model.mpp = mpp
+    model.flip_h = flip_h
+    model.flip_v = flip_v
+
+    # Delete after
+    # traffic_lane_polygon_coords = [
+    #             model.TrafficLaneCoordsFromLimits(i,j)
+    #             for i,j in zip(model.virtual_lane_lim[:-1],model.virtual_lane_lim[1:])]
+    # num_traffic_lanes = len(traffic_lane_polygon_coords)
+    # id_traffic_lane = [str(i) for i in  range(1,num_traffic_lanes+1)]
+    # model.traffic_lane_polygon = dict(zip(["id","coords"],[id_traffic_lane,traffic_lane_polygon_coords]))
+    
+    # model.traffic_lane_polygon = gpd.GeoDataFrame(
+    #         model.traffic_lane_polygon,
+    #         geometry=[shapely.Polygon(i) for i in model.traffic_lane_polygon["coords"]],
+    #         crs="EPSG:31984")
+    # model.traffic_lane_polygon["geometry"] = model.traffic_lane_polygon["geometry"].apply(model.ScalePxToMeterPolygon)
+    # print(model.traffic_lane_polygon[["id","coords"]].to_dict("list"))
+    
+    model.regions = dict(zip(["id","coords"],[id_regions,regions]))
+    model.regions = gpd.GeoDataFrame(
+            model.regions,
+            geometry=[shapely.Polygon(i) for i in model.regions["coords"]],
+            crs="EPSG:31984")
+    model.regions["geometry"] = model.regions["geometry"].apply(model.ScalePxToMeterPolygon)
+
+    model.conflict_zones = dict(zip(["id","coords"],[id_conflict_zones,conflict_zones]))
+    model.conflict_zones = gpd.GeoDataFrame(
+            model.conflict_zones,
+            geometry=[shapely.Polygon(i) for i in model.conflict_zones["coords"]],
+            crs="EPSG:31984")
+    model.conflict_zones["geometry"] = model.conflict_zones["geometry"].apply(model.ScalePxToMeterPolygon)
+    
+    # Delete after
+    # Ajusta o limite entre faixas
+    # model.virtual_lane_lim = [[[i[0]*model.mpp,i[-1]*model.mpp] for i in j] for j in model.virtual_lane_lim]
+
+    # Atribuir dimensões do vídeo
+    model.video_heigth = video_heigth*model.mpp
+    model.video_width = video_width*model.mpp
+    
+    # Delete after
+    # Características do motobox (obsoleto)
+    # model.motobox_start_section = motobox_start_section*model.mpp
+    # model.motobox_end_section = motobox_end_section*model.mpp
+
+    # Largura teórica do corredor virtual
+    # model.width_virtual_lane = width_virtual_lane
+
+    # Instantes em que o verde abre
+    model.green_open_time = green_open_time
+
+    # Nomes dos arquivos
+    model.parameter_file = ""
+    model.image_reference = image_reference
+
+    model.raw_file = f"data/raw/{os.path.basename(raw_file_path)}"
+    model.processed_file = f"data/processed/{file_name}.csv"
+
+    if not os.path.exists(model.processed_file) or force_processing:
+
+        # Importa do arquivo bruto
+        model.df = pd.read_csv(model.raw_file)
+
+        # Renomear colunas
+        old_pattern = False
+        # Ajusta os nomes das colunas para o padrão
+        model.df = model.df.rename(columns={
+            'id':model.id_column,
+            'cls':model.vehicle_type_column,
+            'conf':model.conf_YOLO_column,
+        })
+
+        model.df[model.frame_column] = model.df[model.frame_column].astype(int)
+        model.df[model.id_column] = model.df[model.id_column].astype(int)
+        model.df[model.vehicle_type_column] = model.df[model.vehicle_type_column].astype("category")
+        model.df[model.conf_YOLO_column] = model.df[model.conf_YOLO_column].astype(float)
+        # model.df[model.traffic_lane_column] = model.df[model.traffic_lane_column].astype(int)
+
+        model.df[model.instant_column] = model.df[model.frame_column]/fps
+        model.df[model.instant_column] = model.df[model.instant_column].astype(float).round(4)
+
+        model.df = model.df.rename(columns={
+            'x1':model.p1_x_bb_column,
+            'y1':model.p1_y_bb_column,
+            'x2':model.p2_x_bb_column,
+            'y2':model.p2_y_bb_column,
+        })
+
+        # Ajuste do tipo de veículo
+        for id in model.df[model.id_column].unique():
+            model.df.loc[model.df[model.id_column]==id,model.vehicle_type_column] = model.FindVehicleType(id)
+
+        # Converter variáveis de posição e distancia de pixels para metro
+        model.df[model.p1_x_bb_column] = model.mpp*model.df[model.p1_x_bb_column]
+        model.df[model.p1_y_bb_column] = model.mpp*model.df[model.p1_y_bb_column]
+        model.df[model.p2_x_bb_column] = model.mpp*model.df[model.p2_x_bb_column]
+        model.df[model.p2_y_bb_column] = model.mpp*model.df[model.p2_y_bb_column]
+        
+        # Cálculo das dimensões do veículo
+        model.df[model.vehicle_length_column] = model.df[model.p2_x_bb_column]-model.df[model.p1_x_bb_column]
+        model.df[model.vehicle_width_column] = model.df[model.p2_y_bb_column]-model.df[model.p1_y_bb_column]
+
+        # Rotação horizontal e vertical se necessário
+        if model.flip_h:
+            # Coordenada horizontal à esquerda
+            model.df[model.p1_x_bb_column] = model.video_width - model.df[model.p1_x_bb_column] - model.df[model.vehicle_length_column]
+            # Recalculo do ponto à direita
+            model.df[model.p2_x_bb_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]
+        
+        if model.flip_v:
+            # Coordenada horizontal à esquerda
+            model.df[model.p1_y_bb_column] = model.video_heigth - model.df[model.p1_y_bb_column] - model.df[model.vehicle_width_column]
+            # Recalculo do ponto à direita
+            model.df[model.p2_y_bb_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]
+        
+        # Cálculo do centroide x e y
+        model.df[model.y_centroid_column] = model.df[model.p1_y_bb_column] + model.df[model.vehicle_width_column]*0.5
+        model.df[model.x_centroid_column] = model.df[model.p1_x_bb_column] + model.df[model.vehicle_length_column]*0.5
+
+        # Indicação da região
+        model.df = gpd.GeoDataFrame(model.df,
+                                    geometry=gpd.points_from_xy(model.df[model.x_centroid_column],model.df[model.y_centroid_column]),
+                                    crs="EPSG:31984")
+
+        model.df = model.df.overlay(model.regions.rename(columns={"id":"polygon"})[["polygon","geometry"]],how='union',)
+        # Remover casos duplicados
+        model.df = model.df.drop_duplicates(subset=[model.id_column,model.frame_column],keep="first")
+        # Atribui a faixa ajustada
+        model.df[model.traffic_region_column] = model.df["polygon"]
+        model.df = pd.DataFrame(model.df.drop(columns=["polygon","geometry"]))
+
+        model.CreateJSON2(f"data/json/{file_name}.json")
+
+        # Cálculo de posições estrátégicas longitudinais o veículo
+        # Fundo do veículo
+        model.df[model.x_tail_column] = model.df[model.p1_x_bb_column]
+        # Frente do veículo
+        model.df[model.x_head_column] = model.df[model.p2_x_bb_column]
+
+        # Id geral, combinando id e tempo
+        model.df[model.id_column] = model.df[model.id_column].astype(int)
+        model.df[model.frame_column] = model.df[model.frame_column].astype(int)
+        model.df[model.global_id_column] = model.df[model.id_column].astype(str) + '@' + model.df[model.frame_column].astype(str)
+
+        # Remove valores com baixa incidência
+        model.RemoveLowIncidence()
+        # Calcula da velocidade e aceleração
+        model.SpeedAndAccDetector()
+        # Criar frames interpolados
+        df_new = model.GhostFramesGenerator(model.df[model.id_column].unique(),step=1)
+        model.df = pd.concat([model.df,df_new],ignore_index=True)
+        model.df = model.df.sort_values(by=[model.frame_column,model.traffic_region_column,model.x_centroid_column])
+        print("Fim do tratamento base")
+        # Suavizar
+        model.traffic_lane_column = model.traffic_region_column
+        model.df = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
+        print("Fim da suavização")
+        
+        # Salvar
+        model.df.to_csv(model.processed_file,index=False)
+
+        print("Fim da execussão",model.processed_file)
+        
+        # stop_timer = timeit.default_timer()
+        # count_timer = stop_timer - start_timer
+        # print(f"\tDuração: {int(count_timer//60)}min:{int(count_timer%60)}s")
+    else:
+        print(model.processed_file, "já processado!")
+
 def InsideCircle(x_center,y_center,x_object,y_object,radius):
     '''
     Determina se o ponto (x_object,y_object) está contido dentro do círculo cujo
@@ -5230,3 +5600,4 @@ def VirtualLaneDetector(x,y,virtual_lane_lim,virtual_lane_width):
             break
 
     return virtual_lane
+
