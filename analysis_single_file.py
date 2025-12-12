@@ -6,7 +6,7 @@ import shapely
 warnings.filterwarnings('ignore')
 
 root_path = "project/Safe Lane"
-file_name = "DJI_0001_transformed_processed.json"
+file_name = "DJI_0008_transformed_processed.json"
 
 start_timer = timeit.default_timer()
 if __name__=="__main__":
@@ -14,7 +14,7 @@ if __name__=="__main__":
 
     model = YoloMicroscopicDataProcessing()
     model.ImportFromJSON2(os.path.join("data/json",file_name))
-    model.regions.to_file("teste.gpkg")
+
     # Gambs
     drop_id = model.df[model.df["vehicle_type"]=="Pedestre"]["id"].unique().tolist()
     drop_id = drop_id + model.df[model.df["traffic_region"]=="Acesso 1"]["id"].unique().tolist()
@@ -45,7 +45,7 @@ if __name__=="__main__":
     print(f"Filtro 2: {len(id_list)}")
 
     # 3 step
-    model.SaveImg(id_list)
+    # model.SaveImg(id_list)
     df_bicycle = model.df[(model.df["id"].isin(id_list)) & (model.df["vehicle_type"]=="Bicicleta")]
     df_bicycle["geometry"] = df_bicycle.apply(lambda row:shapely.Polygon([(row["p1xbb"],row["p1ybb"]),(row["p1xbb"],row["p2ybb"]),(row["p2xbb"],row["p2ybb"]),(row["p2xbb"],row["p1ybb"])]),axis=1)
     df_bicycle = gpd.GeoDataFrame(df_bicycle,
@@ -121,7 +121,18 @@ if __name__=="__main__":
     df_non_bicycle["length_z3"] = df_non_bicycle.apply(lambda row:shapely.LineString(model.df[(model.df["id"]==row["id"]) & (model.df["frame"].between(row["ff_z3"],row["lf_z3"]))][['x', 'y']].values).length,axis=1)
     df_non_bicycle["average_speed_z3"] = 3.6*(df_non_bicycle["length_z3"]/df_non_bicycle["delta_time_z3"])
 
-    print(df_non_bicycle[["id","average_speed_z1","average_speed_z2","average_speed_z3"]].sort_values("average_speed_z1"))
+    # Bicycle
+    # 1 zone
+    df_bicycle["delta_time"] = (df_bicycle["lf"] - df_bicycle["ff"])/model.fps
+    df_bicycle["length"] = df_bicycle.apply(lambda row:shapely.LineString(model.df[(model.df["id"]==row["id"]) & (model.df["frame"].between(row["ff"],row["lf"]))][['x', 'y']].values).length,axis=1)
+    df_bicycle["average_speed"] = 3.6*(df_bicycle["length"]/df_bicycle["delta_time"])
+
+    df_bicycle.insert(0,"file",file_name)
+    df_non_bicycle.insert(0,"file",file_name)
+
+    df_bicycle.to_excel(os.path.join("data/result/speed_profile",file_name.replace(".json","_bicycle.xlsx")),index=False)
+    df_non_bicycle.to_excel(os.path.join("data/result/speed_profile",file_name.replace(".json","_non_bicycle.xlsx")),index=False)
+    
 
 stop_timer = timeit.default_timer()
 count_timer = stop_timer - start_timer

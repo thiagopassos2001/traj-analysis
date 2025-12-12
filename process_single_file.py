@@ -5,7 +5,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 root_path = "project/Safe Lane"
-file_name = "DJI_0001_transformed_processed.csv"
+file_name = "DJI_0008_transformed_processed.csv"
 
 start_timer = timeit.default_timer()
 if __name__=="__main__":
@@ -25,7 +25,7 @@ if __name__=="__main__":
         flip_h=False,
         flip_v=False,
         green_open_time=[0],
-        force_processing=True)
+        force_processing=False)
 
 stop_timer = timeit.default_timer()
 count_timer = stop_timer - start_timer
