@@ -52,7 +52,38 @@ if __name__=="__main__":
         id_list = df_filtered["id"].tolist()
         print(f"Filtro 2: {len(id_list)}")
 
-        df_ = model.df[model.df["id"].isin(id_list)]
+        # 3 step
+        df_bicycle = model.df[(model.df["id"].isin(id_list)) & (model.df["vehicle_type"]=="Bicicleta")]
+        df_bicycle["geometry"] = df_bicycle.apply(lambda row:shapely.Polygon([(row["p1xbb"],row["p1ybb"]),(row["p1xbb"],row["p2ybb"]),(row["p2xbb"],row["p2ybb"]),(row["p2xbb"],row["p1ybb"])]),axis=1)
+        df_bicycle = gpd.GeoDataFrame(df_bicycle,
+                                    geometry="geometry",
+                                    crs="EPSG:31984")
+        zone_bicycle = model.conflict_zones[model.conflict_zones["id"]=="ZA-B"]
+        df_bicycle = df_bicycle.overlay(zone_bicycle.rename(columns={"id":"zone"})[["zone","geometry"]],how='intersection')
+        df_bicycle = df_bicycle.sort_values(by=[model.frame_column,model.id_column])
+        df_bicycle = df_bicycle.drop_duplicates(subset=[model.id_column,model.frame_column],keep="first")
+        df_bicycle = df_bicycle.groupby(["id","vehicle_type"]).agg({"frame":["first","last"]}).reset_index(drop=False)
+        df_bicycle.columns = ["id","vehicle_type","ff","lf"]
+
+        df_non_bicycle = model.df[(model.df["id"].isin(id_list)) & (model.df["vehicle_type"]!="Bicicleta")]
+        df_non_bicycle["geometry"] = df_non_bicycle.apply(lambda row:shapely.Polygon([(row["p1xbb"],row["p1ybb"]),(row["p1xbb"],row["p2ybb"]),(row["p2xbb"],row["p2ybb"]),(row["p2xbb"],row["p1ybb"])]),axis=1)
+        df_non_bicycle = gpd.GeoDataFrame(df_non_bicycle,
+                                    geometry="geometry",
+                                    crs="EPSG:31984")
+        zone_non_bicycle = model.conflict_zones[model.conflict_zones["id"]=="ZA-OM"]
+        df_non_bicycle = df_non_bicycle.overlay(zone_non_bicycle.rename(columns={"id":"zone"})[["zone","geometry"]],how='intersection')
+        df_non_bicycle = df_non_bicycle.sort_values(by=[model.frame_column,model.id_column])
+        df_non_bicycle = df_non_bicycle.drop_duplicates(subset=[model.id_column,model.frame_column],keep="first")
+        df_non_bicycle = df_non_bicycle.groupby(["id","vehicle_type"]).agg({"frame":["first","last"]}).reset_index(drop=False)
+        df_non_bicycle.columns = ["id","vehicle_type","ff","lf"]
+
+        df_bicycle["id_interaction"] = df_bicycle.apply(lambda row:df_non_bicycle[(df_non_bicycle["ff"]<=row["lf"]) & (df_non_bicycle["lf"]>=row["ff"])]["id"].unique().tolist(),axis=1)
+        df_bicycle["interaction"] = df_bicycle["id_interaction"].apply(len).astype(bool)
+
+        df_non_bicycle["id_interaction"] = df_non_bicycle.apply(lambda row:df_bicycle[(df_bicycle["ff"]<=row["lf"]) & (df_bicycle["lf"]>=row["ff"])]["id"].unique().tolist(),axis=1)
+        df_non_bicycle["interaction"] = df_non_bicycle["id_interaction"].apply(len).astype(bool)
+
+        df_ = model.df[model.df["id"].isin(df_non_bicycle[df_non_bicycle["interaction"]==True]["id"].tolist()+df_bicycle[df_bicycle["interaction"]==True]["id"].tolist())]
         df_["id"] = df_["id"].astype(str) + "_" + file_name
         
         df_concat.append(df_)
