@@ -3961,48 +3961,72 @@ class  YoloMicroscopicDataProcessing:
         id_vehicle,
         x_column=None,
         y_column=None,
-        wl=15,
-        threshold_direction_sum=0.25
+        window_length=15,
     ):
+        """
+        Estima a direção do veículo com base no seu padrão de motivmentação
+
+        Retorna o self.df com atributos adicionais de direção como 
+        direction_x
+        direction_y
+        direction_norm_x
+        direction_norm_y
+        rad
+        degree
+        yaw_rate
+        """
         
         if x_column==None:
             x_column = self.x_centroid_column
         if y_column==None:
             y_column = self.y_centroid_column
         
+        half_wl = int(window_length/2)
+        
         df_analyzed = self.df.query(f"{self.id_column} == {id_vehicle}")
         df_analyzed = df_analyzed.sort_values(by=self.frame_column)
 
         n_sample = len(df_analyzed)
 
-        if n_sample<wl:
+        # Se não tiver menor que "wl", retorna o valor vazio
+        if n_sample<window_length:
             return pd.DataFrame()
         
-        # Direção do frame i é a direção média do frame i - 1 e i + 1
-        direction_x = [df_analyzed[x_column].iloc[i+int(wl/2)]-df_analyzed[x_column].iloc[i-int(wl/2)] for i in range(int(wl/2),n_sample-int(wl/2))]
-        direction_x = direction_x[:int(wl/2)] + direction_x + direction_x[-int(wl/2):]
+        # Direção absoluta em metros
+        direction_x = []
+        for i in range(half_wl,n_sample-half_wl):
+            delta_x = df_analyzed[x_column].iloc[i+half_wl] - df_analyzed[x_column].iloc[i-half_wl]
+            direction_x.append(delta_x)
+        direction_x = direction_x[:half_wl] + direction_x + direction_x[-half_wl:]
 
-        direction_y = [df_analyzed[y_column].iloc[i+int(wl/2)]-df_analyzed[y_column].iloc[i-int(wl/2)] for i in range(int(wl/2),n_sample-int(wl/2))]
-        direction_y = direction_y[:int(wl/2)] + direction_y + direction_y[-int(wl/2):]
+        direction_y = []
+        for i in range(half_wl,n_sample-half_wl):
+            delta_y = df_analyzed[y_column].iloc[i+half_wl] - df_analyzed[y_column].iloc[i-half_wl]
+            direction_y.append(delta_y)
+        direction_y = direction_y[:half_wl] + direction_y + direction_y[-half_wl:]
 
         # Ajuste de direção indeterminada
         # Se a soma das direções x e y em metro for muito baixa
-        # Ignora essa métrica e pega a anterior
+        # Ignora essa métrica e pega a anterior para manter o movimento
         
-        for i in range(n_sample):
-            if i>wl:
-                dir_x = abs(direction_x[i])
-                dir_y = abs(direction_y[i])
-                direction_x[i] = direction_x[i] if dir_x+dir_y>threshold_direction_sum else np.mean(direction_x[i-wl:i])
-                direction_y[i] = direction_y[i] if dir_x+dir_y>threshold_direction_sum else np.mean(direction_y[i-wl:i])
+        # for i in range(n_sample):
+        #     if i>half_wl:
+        #         dir_x = abs(direction_x[i])
+        #         dir_y = abs(direction_y[i])
+        #         direction_x[i] = direction_x[i] if dir_x + dir_y > threshold_direction_sum else np.mean(direction_x[i - half_wl:i + half_wl])
+        #         direction_y[i] = direction_y[i] if dir_x + dir_y > threshold_direction_sum else np.mean(direction_y[i - half_wl:i + half_wl])
+
+        direction_x = savgol_filter(direction_x,window_length=window_length,polyorder=1)
+        direction_y = savgol_filter(direction_y,window_length=window_length,polyorder=1)
 
         df_analyzed['direction_x'] = direction_x
-        df_analyzed['direction_y'] = direction_y
+        df_analyzed['direction_y'] = -direction_y # Negativo pois o padrão da imagem é o 4o quadrante
 
         # Normalizar vetor
         vector = df_analyzed.apply(lambda x:np.array([x['direction_x'],x['direction_y'],0]),axis=1)
         magnitude = vector.apply(lambda x:np.linalg.norm(x))
         normalized_vector = vector / magnitude
+
         # Suavizar vetor normalizado
         df_analyzed['direction_norm_x'] = normalized_vector.apply(lambda x:x[0])
         df_analyzed['direction_norm_y'] = normalized_vector.apply(lambda x:x[1])
@@ -4013,6 +4037,24 @@ class  YoloMicroscopicDataProcessing:
 
         # yaw rate
         df_analyzed['yaw_rate'] = np.gradient(df_analyzed['rad'],df_analyzed[self.instant_column],edge_order=2)
+
+        # Check
+        offset_entry = 3
+        if df_analyzed.iloc[:offset_entry]['direction_norm_x'].abs().mean().round(3) > 0.75:
+            theoretical_length = df_analyzed[df_analyzed['direction_norm_x'].abs()>0.975]["vehicle_length"].mean()
+        elif df_analyzed.iloc[:offset_entry]['direction_norm_y'].abs().mean().round(3) > 0.75:
+            theoretical_length = df_analyzed[df_analyzed['direction_norm_y'].abs()>0.975]["vehicle_width"].mean()
+        else:
+            theoretical_length = ((df_analyzed.iloc[:offset_entry]["vehicle_length"].mean()**2) + (df_analyzed.iloc[:offset_entry]["vehicle_width"].mean()**2))**0.5
+
+        df_analyzed["theoretical_front_x"] = df_analyzed["x"] + theoretical_length
+        df_analyzed["theoretical_front_y"] = df_analyzed["y"]
+
+        adjusted_x = df_analyzed["theoretical_front_x"] - df_analyzed["x"]
+        adjusted_y = df_analyzed["theoretical_front_y"] - df_analyzed["y"]
+
+        df_analyzed["adjust_front_x"] = df_analyzed["x"] + np.cos(df_analyzed['rad']) * adjusted_x + np.sin(df_analyzed['rad']) * adjusted_y
+        df_analyzed["adjust_front_y"] = df_analyzed["y"] + -np.sin(df_analyzed['rad']) * adjusted_x + np.cos(df_analyzed['rad']) * adjusted_y
 
         return df_analyzed
     
