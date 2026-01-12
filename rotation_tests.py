@@ -19,5 +19,5 @@ if __name__=="__main__":
         model.ImportFromJSON2(os.path.join("data/json",file_name))
 
         print(model.DirectionEstimate(59,window_length=15))
-        print(model.mpp)
+        # print(model.mpp)
         model.DirectionEstimate(59,window_length=15).to_excel("RotMethod.xlsx",index=False)

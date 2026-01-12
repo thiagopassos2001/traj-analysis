@@ -3989,9 +3989,9 @@ class  YoloMicroscopicDataProcessing:
         n_sample = len(df_analyzed)
 
         # Se não tiver menor que "wl", retorna o valor vazio
-        if n_sample<window_length:
+        if n_sample<window_length+half_wl:
             return pd.DataFrame()
-        
+
         # Direção absoluta em metros
         direction_x = []
         for i in range(half_wl,n_sample-half_wl):
@@ -4020,7 +4020,7 @@ class  YoloMicroscopicDataProcessing:
         direction_y = savgol_filter(direction_y,window_length=window_length,polyorder=1)
 
         df_analyzed['direction_x'] = direction_x
-        df_analyzed['direction_y'] = -direction_y # Negativo pois o padrão da imagem é o 4o quadrante
+        df_analyzed['direction_y'] = direction_y # Negativo pois o padrão da imagem é o 4o quadrante
 
         # Normalizar vetor
         vector = df_analyzed.apply(lambda x:np.array([x['direction_x'],x['direction_y'],0]),axis=1)
@@ -4038,14 +4038,20 @@ class  YoloMicroscopicDataProcessing:
         # yaw rate
         df_analyzed['yaw_rate'] = np.gradient(df_analyzed['rad'],df_analyzed[self.instant_column],edge_order=2)
 
-        # Check
+        # Check sample size
         offset_entry = 3
         if df_analyzed.iloc[:offset_entry]['direction_norm_x'].abs().mean().round(3) > 0.75:
-            theoretical_length = df_analyzed[df_analyzed['direction_norm_x'].abs()>0.975]["vehicle_length"].mean()
+            theoretical_length = df_analyzed[df_analyzed['direction_norm_x'].abs()>0.975]["vehicle_length"].median()
+            theoretical_width = df_analyzed[df_analyzed['direction_norm_x'].abs()>0.975]["vehicle_width"].median()
         elif df_analyzed.iloc[:offset_entry]['direction_norm_y'].abs().mean().round(3) > 0.75:
-            theoretical_length = df_analyzed[df_analyzed['direction_norm_y'].abs()>0.975]["vehicle_width"].mean()
+            theoretical_length = df_analyzed[df_analyzed['direction_norm_y'].abs()>0.975]["vehicle_width"].median()
+            theoretical_width = df_analyzed[df_analyzed['direction_norm_y'].abs()>0.975]["vehicle_length"].median()
         else:
-            theoretical_length = ((df_analyzed.iloc[:offset_entry]["vehicle_length"].mean()**2) + (df_analyzed.iloc[:offset_entry]["vehicle_width"].mean()**2))**0.5
+            theoretical_length = ((df_analyzed.iloc[:offset_entry]["vehicle_length"].median()**2) + (df_analyzed.iloc[:offset_entry]["vehicle_width"].median()**2))**0.5
+            theoretical_width = df_analyzed[df_analyzed['direction_norm_x'].abs()>0.975]["vehicle_width"].median()
+
+        df_analyzed["theoretical_length"] = theoretical_length
+        df_analyzed["theoretical_width"] = theoretical_width
 
         df_analyzed["theoretical_front_x"] = df_analyzed["x"] + theoretical_length
         df_analyzed["theoretical_front_y"] = df_analyzed["y"]
@@ -4053,8 +4059,10 @@ class  YoloMicroscopicDataProcessing:
         adjusted_x = df_analyzed["theoretical_front_x"] - df_analyzed["x"]
         adjusted_y = df_analyzed["theoretical_front_y"] - df_analyzed["y"]
 
-        df_analyzed["adjust_front_x"] = df_analyzed["x"] + np.cos(df_analyzed['rad']) * adjusted_x + np.sin(df_analyzed['rad']) * adjusted_y
-        df_analyzed["adjust_front_y"] = df_analyzed["y"] + -np.sin(df_analyzed['rad']) * adjusted_x + np.cos(df_analyzed['rad']) * adjusted_y
+        # rad é negativo devido ao sistema de coordenadas da imagem em relação ao sistema convencional, tal que é espelhado no eixo x
+        # a interpretação para calcular os demais indicadores não se altera, mas para a aplicação das funções sin e cos alteram-se
+        df_analyzed["adjust_front_x"] = df_analyzed["x"] + np.cos(-df_analyzed['rad']) * adjusted_x + np.sin(-df_analyzed['rad']) * adjusted_y
+        df_analyzed["adjust_front_y"] = df_analyzed["y"] + -np.sin(-df_analyzed['rad']) * adjusted_x + np.cos(-df_analyzed['rad']) * adjusted_y
 
         return df_analyzed
     
