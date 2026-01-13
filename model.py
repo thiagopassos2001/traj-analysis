@@ -3962,6 +3962,7 @@ class  YoloMicroscopicDataProcessing:
         x_column=None,
         y_column=None,
         window_length=15,
+        threshold_direction_sum=0.25
     ):
         """
         Estima a direção do veículo com base no seu padrão de motivmentação
@@ -4009,12 +4010,17 @@ class  YoloMicroscopicDataProcessing:
         # Se a soma das direções x e y em metro for muito baixa
         # Ignora essa métrica e pega a anterior para manter o movimento
         
-        # for i in range(n_sample):
-        #     if i>half_wl:
-        #         dir_x = abs(direction_x[i])
-        #         dir_y = abs(direction_y[i])
-        #         direction_x[i] = direction_x[i] if dir_x + dir_y > threshold_direction_sum else np.mean(direction_x[i - half_wl:i + half_wl])
-        #         direction_y[i] = direction_y[i] if dir_x + dir_y > threshold_direction_sum else np.mean(direction_y[i - half_wl:i + half_wl])
+        for i in range(n_sample):
+            if i>half_wl:
+                dir_x = abs(direction_x[i])
+                dir_y = abs(direction_y[i])
+
+                if dir_x + dir_y > threshold_direction_sum:
+                    direction_x[i] = direction_x[i]
+                    direction_y[i] = direction_y[i]
+                else:
+                    direction_x[i] = np.mean(direction_x[i - half_wl:i])# np.mean(direction_x[i - half_wl:i + half_wl])
+                    direction_y[i] = np.mean(direction_y[i - half_wl:i]) # np.mean(direction_y[i - half_wl:i + half_wl])
 
         direction_x = savgol_filter(direction_x,window_length=window_length,polyorder=1)
         direction_y = savgol_filter(direction_y,window_length=window_length,polyorder=1)
