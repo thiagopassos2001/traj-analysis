@@ -17,22 +17,20 @@ from until.SSMsOnPlane.src.efficiency_utils import evaluate_efficiency
 # results = TTC(samples, toreturn='dataframe')
 # print(results.head())
 
-root_path = "project/Doutorado Alessandro Macêdo"
+# root_path = "project/Doutorado Alessandro Macêdo"
 
 if __name__=="__main__":
-    os.chdir(root_path)
-
-    for file_name in [
-        "C_x_13M_D2_0001.json",
-        "C_x_13M_SemMotobox_D1_0001.json"
-    ]:
+    # os.chdir(root_path)
+    TTC_processed_list  = os.listdir("data/TTC")
+    for file_name in [i for i in os.listdir("data/json") if ("C_x_13M" in i) and ("TTC_"+i.replace(".json",".csv") not in TTC_processed_list)]:
         model = YoloMicroscopicDataProcessing()
-        model.ImportFromJSON(os.path.join("data/json",file_name),post_processing=model.PostProcessing1)
+        model.ImportFromJSON(os.path.join("data/json",file_name),post_processing=model.PostProcessing1) # ,
+        print(file_name)
 
         # Suavizar variáveis
-        # model.df = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
-        # print("Suavizado",file_name)
-        # model.df.to_csv(model.processed_file,index=False)
+        model.df = model.SmoothingSavGolFilter(window_length=15,polyorder=1)
+        print("Suavizado",file_name)
+        model.df.to_csv("data/smooth/"+file_name.replace(".json",".csv"),index=False)
 
         # Cálculo nas inclinações e dimensões "teóricas" dos veículos
         df_ = []
@@ -41,9 +39,15 @@ if __name__=="__main__":
         df_ = pd.concat(df_,ignore_index=True).sort_values(by=["frame","id"])
         print("Inclinado",file_name)
 
+        # Alterar a frequência da amostra para 10fps
+        min_frame = df_[model.frame_column].min()
+        max_frame = df_[model.frame_column].max()
+        list_frames = list(range(min_frame,max_frame+1,3))
+        df_ = df_[df_[model.frame_column].isin(list_frames)]
+
         # Cálculo do TTC
         df_TTC = []
-        for f in model.df["frame"].unique():
+        for f in df_["frame"].unique():
             df_f = df_[df_["frame"]==f]
 
             # Ajuste das coordenadas y
@@ -112,4 +116,4 @@ if __name__=="__main__":
                 print(f'Instante {f} não processdo por ter somente {len(df_f)} veículos')
 
         df_TTC = pd.concat(df_TTC,ignore_index=True)
-        df_TTC.to_csv("TTC_"+file_name.replace(".json",".csv"),index=False)
+        df_TTC.to_csv("data/TTC/TTC_"+file_name.replace(".json",".csv"),index=False)

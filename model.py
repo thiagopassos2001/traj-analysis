@@ -407,6 +407,7 @@ class  YoloMicroscopicDataProcessing:
         E ids (trajetória completa) se não tiver faixa associada em todos os frames
         Não retorna valor, altera diretamente o self.df
         """
+        
         # Remove observações de bicicletas e pedestres
         self.df = self.df[-self.df[self.vehicle_type_column].isin(["Bicicleta","Pedestre"])]
         
@@ -417,22 +418,32 @@ class  YoloMicroscopicDataProcessing:
 
         # Ajuste do número da faixa
         df_0_conf_YOLO = self.df[self.df[self.conf_YOLO_column]==0]
-        df_0_conf_YOLO = gpd.GeoDataFrame(
-            df_0_conf_YOLO,
-            geometry=gpd.points_from_xy(df_0_conf_YOLO[self.x_centroid_column],df_0_conf_YOLO[self.y_centroid_column]),
-            crs="EPSG:31984")
 
-        df_0_conf_YOLO = df_0_conf_YOLO.overlay(self.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union',)
-        # Remover casos duplicados em "tl_polygon"
-        df_0_conf_YOLO = df_0_conf_YOLO.drop_duplicates(subset=[self.id_column,self.frame_column],keep="first")
-        # Atribui a faixa ajustada
-        df_0_conf_YOLO[self.traffic_lane_column] = df_0_conf_YOLO["tl_polygon"]
-        df_0_conf_YOLO = pd.DataFrame(df_0_conf_YOLO.drop(columns=["tl_polygon","geometry"]))
-
-        self.df = pd.concat([self.df[self.df[self.conf_YOLO_column]>0],df_0_conf_YOLO],ignore_index=True)
+        if not df_0_conf_YOLO.empty:
+            df_0_conf_YOLO = gpd.GeoDataFrame(
+                df_0_conf_YOLO,
+                geometry=gpd.points_from_xy(df_0_conf_YOLO[self.x_centroid_column],df_0_conf_YOLO[self.y_centroid_column]),
+                crs="EPSG:31984")
+            
+            df_0_conf_YOLO = df_0_conf_YOLO.overlay(self.traffic_lane_polygon.rename(columns={"id":"tl_polygon"})[["tl_polygon","geometry"]],how='union',)
+            
+            # Remover casos duplicados em "tl_polygon"
+            df_0_conf_YOLO = df_0_conf_YOLO.drop_duplicates(subset=[self.id_column,self.frame_column],keep="first")
+            # Atribui a faixa ajustada
+            df_0_conf_YOLO[self.traffic_lane_column] = df_0_conf_YOLO["tl_polygon"]
+            df_0_conf_YOLO = pd.DataFrame(df_0_conf_YOLO.drop(columns=["tl_polygon","geometry"]))
+            
+            self.df = pd.concat([self.df[self.df[self.conf_YOLO_column]>0],df_0_conf_YOLO],ignore_index=True)
         self.df = self.df.sort_values(by=[self.frame_column,self.traffic_lane_column,self.x_centroid_column])
+        
+        # Remove somente o que sempre foi np.nan
+        # Repensar a organização para o novo padrão
+        self.df[self.traffic_lane_column] = self.df[self.traffic_lane_column].fillna(-1).astype(int) 
+        df_traffic_lane = self.df.groupby(self.id_column).agg({self.traffic_lane_column:"max"}).reset_index(drop=False)
+        id_dropna = df_traffic_lane[df_traffic_lane[self.traffic_lane_column]==-1][self.id_column].tolist()
+        self.df = self.df[-self.df[self.id_column].isin(id_dropna)] 
 
-        self.df = self.df.dropna(subset=self.traffic_lane_column)
+        # self.df = self.df.dropna(subset=self.traffic_lane_column)
 
         self.df = self.df.reset_index(drop=True)
 
@@ -546,7 +557,10 @@ class  YoloMicroscopicDataProcessing:
 
             if post_processing!=None:
                 post_processing()
-        except:
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            print(f"The exception type is: {type(e).__name__}")
+
             self.df = pd.DataFrame()
             print("Trajetórias ainda não processadas!")
         finally:
@@ -1003,62 +1017,65 @@ class  YoloMicroscopicDataProcessing:
             # Filtro para garantir que somente os frames certos sejam considerados
             df_analyzed = df_analyzed[df_analyzed[self.frame_column].isin(frame_range_list)]
 
-            # Instante de tempo
-            t = df_analyzed[self.instant_column]
+            if len(df_analyzed)<window_length:
+                print(f"{id_vehicle} não foi suavizado pois apresenta somente {len(df_analyzed)} observações (menor que {window_length})")
+            else:
+                # Instante de tempo
+                t = df_analyzed[self.instant_column]
 
-            # Suavização do Ponto 1
-            x1 = savgol_filter(df_analyzed[self.p1_x_bb_column],window_length=window_length,polyorder=polyorder)
-            y1 = savgol_filter(df_analyzed[self.p1_y_bb_column],window_length=window_length,polyorder=polyorder)
-            # Suavização do Ponto 2
-            x2 = savgol_filter(df_analyzed[self.p2_x_bb_column],window_length=window_length,polyorder=polyorder)
-            y2 = savgol_filter(df_analyzed[self.p2_y_bb_column],window_length=window_length,polyorder=polyorder)
+                # Suavização do Ponto 1
+                x1 = savgol_filter(df_analyzed[self.p1_x_bb_column],window_length=window_length,polyorder=polyorder)
+                y1 = savgol_filter(df_analyzed[self.p1_y_bb_column],window_length=window_length,polyorder=polyorder)
+                # Suavização do Ponto 2
+                x2 = savgol_filter(df_analyzed[self.p2_x_bb_column],window_length=window_length,polyorder=polyorder)
+                y2 = savgol_filter(df_analyzed[self.p2_y_bb_column],window_length=window_length,polyorder=polyorder)
 
-            # Recálcula de valores de posição
-            # Centroide
-            xc = (x1+x2)*0.5
-            yc = (y1+y2)*0.5
-            # Comprimento
-            length = abs(x1-x2)
-            # Largura
-            width = abs(y1-y2)
-            # Head
-            head = xc + (length/2)
-            # Tail
-            tail = xc - (length/2)
+                # Recálcula de valores de posição
+                # Centroide
+                xc = (x1+x2)*0.5
+                yc = (y1+y2)*0.5
+                # Comprimento
+                length = abs(x1-x2)
+                # Largura
+                width = abs(y1-y2)
+                # Head
+                head = xc + (length/2)
+                # Tail
+                tail = xc - (length/2)
 
-            # Recalculo da velocidade
-            x_instant_speed = np.gradient(xc,t,edge_order=2)
-            y_instant_speed = np.gradient(yc,t,edge_order=2)
-            # Suavização da velocidade
-            x_instant_speed = savgol_filter(x_instant_speed,window_length=window_length,polyorder=polyorder)
-            y_instant_speed = savgol_filter(y_instant_speed,window_length=window_length,polyorder=polyorder)
-            # Recalculo da aceleração
-            x_instant_acc = np.gradient(x_instant_speed,t,edge_order=2)
-            y_instant_acc = np.gradient(y_instant_speed,t,edge_order=2)
-            # Suavização da aceleração
-            x_instant_acc = savgol_filter(x_instant_acc,window_length=window_length,polyorder=polyorder)
-            y_instant_acc = savgol_filter(y_instant_acc,window_length=window_length,polyorder=polyorder)
+                # Recalculo da velocidade
+                x_instant_speed = np.gradient(xc,t,edge_order=2)
+                y_instant_speed = np.gradient(yc,t,edge_order=2)
+                # Suavização da velocidade
+                x_instant_speed = savgol_filter(x_instant_speed,window_length=window_length,polyorder=polyorder)
+                y_instant_speed = savgol_filter(y_instant_speed,window_length=window_length,polyorder=polyorder)
+                # Recalculo da aceleração
+                x_instant_acc = np.gradient(x_instant_speed,t,edge_order=2)
+                y_instant_acc = np.gradient(y_instant_speed,t,edge_order=2)
+                # Suavização da aceleração
+                x_instant_acc = savgol_filter(x_instant_acc,window_length=window_length,polyorder=polyorder)
+                y_instant_acc = savgol_filter(y_instant_acc,window_length=window_length,polyorder=polyorder)
 
-            # Associação com o veículo das variáveis atualizadas
-            # Posição
-            df_analyzed[self.y_centroid_column] = yc
-            df_analyzed[self.x_centroid_column] = xc
-            df_analyzed[self.x_head_column] = head
-            df_analyzed[self.x_tail_column] = tail
-            df_analyzed[self.p1_x_bb_column] = x1
-            df_analyzed[self.p1_y_bb_column] = y1
-            df_analyzed[self.p2_x_bb_column] = x2
-            df_analyzed[self.p2_y_bb_column] = y2
-            df_analyzed[self.vehicle_length_column] = length
-            df_analyzed[self.vehicle_width_column] = width
-            # Velocidade
-            df_analyzed[self.x_instant_speed_column] = x_instant_speed
-            df_analyzed[self.y_instant_speed_column] = y_instant_speed
-            df_analyzed[self.instant_speed_column] = ((df_analyzed[self.x_instant_speed_column]**2) + (df_analyzed[self.y_instant_speed_column]**2))**0.5
-            # Aceleração
-            df_analyzed[self.x_instant_acc_column] = x_instant_acc
-            df_analyzed[self.y_instant_acc_column] = y_instant_acc
-            df_analyzed[self.instant_acc_column] = ((df_analyzed[self.x_instant_acc_column]**2) + (df_analyzed[self.y_instant_acc_column]**2))**0.5
+                # Associação com o veículo das variáveis atualizadas
+                # Posição
+                df_analyzed[self.y_centroid_column] = yc
+                df_analyzed[self.x_centroid_column] = xc
+                df_analyzed[self.x_head_column] = head
+                df_analyzed[self.x_tail_column] = tail
+                df_analyzed[self.p1_x_bb_column] = x1
+                df_analyzed[self.p1_y_bb_column] = y1
+                df_analyzed[self.p2_x_bb_column] = x2
+                df_analyzed[self.p2_y_bb_column] = y2
+                df_analyzed[self.vehicle_length_column] = length
+                df_analyzed[self.vehicle_width_column] = width
+                # Velocidade
+                df_analyzed[self.x_instant_speed_column] = x_instant_speed
+                df_analyzed[self.y_instant_speed_column] = y_instant_speed
+                df_analyzed[self.instant_speed_column] = ((df_analyzed[self.x_instant_speed_column]**2) + (df_analyzed[self.y_instant_speed_column]**2))**0.5
+                # Aceleração
+                df_analyzed[self.x_instant_acc_column] = x_instant_acc
+                df_analyzed[self.y_instant_acc_column] = y_instant_acc
+                df_analyzed[self.instant_acc_column] = ((df_analyzed[self.x_instant_acc_column]**2) + (df_analyzed[self.y_instant_acc_column]**2))**0.5
 
             # Mesclar coms os outros id
             df_smooth = pd.concat([df_smooth,df_analyzed[cols_keep]],ignore_index=True)
