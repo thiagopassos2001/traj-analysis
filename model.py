@@ -4838,7 +4838,15 @@ class  YoloMicroscopicDataProcessing:
             df_agg["left"] = [V2S_left[self.id_column].values[0]]
             df_agg["dist_left"] = [V2S_left["lateral_distance_between_vehicles"].values[0]]
         
-        print("OK",id_vehicle,frame)
+        df_agg[["front",
+            "rear",
+            "left",
+            "right"]] = df_agg[["front",
+            "rear",
+            "left",
+            "right"]].fillna(-1)
+        
+        # print("OK",id_vehicle,frame)
         return df_agg
 
     def SpeedFlowDensityAgg(
