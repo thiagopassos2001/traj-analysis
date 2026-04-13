@@ -1,6 +1,6 @@
  # Libs principais
 from model import *
-from TTC_model import *
+# from TTC_model import *
 import pandas as pd
 # Controle de execução e pastas
 import os
