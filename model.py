@@ -3693,7 +3693,7 @@ class  YoloMicroscopicDataProcessing:
         vehicle_id_list = vehicle_id_list[self.id_column].unique().tolist()
 
         df = []
-        print(section)
+        # print(section)
         for vehicle_id in vehicle_id_list:
             
             row = self.VechicleCrossingSection(
@@ -3705,7 +3705,7 @@ class  YoloMicroscopicDataProcessing:
             df.append(row)
         
         df = pd.concat(df,ignore_index=True)
-        print(df)
+        # print(df)
         # Filtra os limites para remover veículos que passaram na seção,
         # Mas fora dos frames indicados
         df = df[df[self.frame_column].between(start_frame,last_frame)].sort_values(self.frame_column)
@@ -4871,6 +4871,8 @@ class  YoloMicroscopicDataProcessing:
         df_analysis = self.GroupVechiclesCrossingSection(section=section)
         if traffic_lane_list!=None:
             df_analysis = df_analysis[df_analysis[self.traffic_lane_column].isin(traffic_lane_list)]
+        if df_analysis.empty:
+            return pd.DataFrame(columns=["step",self.vehicle_type_column,"delta_time","count","flow","speed"])
 
         df_analysis = df_analysis.merge(self.df[[
             self.frame_column,
@@ -4891,13 +4893,22 @@ class  YoloMicroscopicDataProcessing:
             index=["step",self.vehicle_type_column],
             # columns=[], # self.traffic_lane_column,
             aggfunc={
-                self.id_column:[count_to_flow,"nunique",], # "nunique" to count and "unique" to check
+                self.id_column:["nunique",], # "nunique" to count and "unique" to check
                 self.instant_speed_column:"mean"}
         )
+        df_agg = df_agg.reset_index(drop=False)
+        df_agg.columns = ["step",self.vehicle_type_column,"count","speed"]
+        df_agg["step"] = df_agg["step"].astype(int)
 
-        df_agg.columns = ["volume","count","speed"]
-        df_agg = df_agg[["count","volume","speed"]]
-        df_agg["density"] = df_agg["volume"] / df_agg["speed"]
+        max_step = df_agg["step"].max()
+        num_sec = self.df[self.frame_column].max()/self.fps
+        max_step_value = num_sec if step > num_sec else num_sec % step
+        df_agg = df_agg.reset_index(drop=False)
+        df_agg["delta_time"] = df_agg.apply(lambda row: step/3600 if row["step"]<max_step else max_step_value/3600,axis=1)
+        df_agg["flow"] = df_agg["count"] / df_agg["delta_time"]
+
+        df_agg = df_agg[["step",self.vehicle_type_column,"delta_time","count","flow","speed"]]
+        df_agg["density"] = df_agg["flow"] / df_agg["speed"]
 
         return df_agg
     
