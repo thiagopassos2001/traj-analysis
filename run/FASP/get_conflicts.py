@@ -20,14 +20,14 @@ if __name__=="__main__":
         # File motorcycle road section
         df_mrs_OG = pd.read_csv(os.path.join("data/collected/Dissertação/MotorcycleRoadSection",f))
 
-        df_mrs = df_mrs_OG[df_mrs_OG["virtual_lane_type"]=="Corredor Principal"].copy()
+        df_mrs = df_mrs_OG[df_mrs_OG["virtual_lane_type"]=="Corredor Principal"].copy() # 
 
         # Filter 1
         # df_mrs = df_mrs[df_mrs["virtual_lane_type"]=="Corredor Principal"] # commented by run all
         # Merge
         df_mrs = df_mrs.merge(df_mss,on=["id","frame"],how="left")
         # Calc prioritize (Y)
-        df_mrs = df_mrs.groupby(["id"]).agg({ # ,"virtual_lane_type" # commented by run all
+        df_mrs = df_mrs.groupby(["id","virtual_lane_type"]).agg({ # ,"virtual_lane_type" # commented by run all
             "frame":"count",
             "x_instant_speed_reference":"max",
             "space_headway":"min",
@@ -40,7 +40,7 @@ if __name__=="__main__":
             # "space_headway":"m2_headway",
             # "TTC":"m3_TTC"
             })
-        df_mrs = df_mrs[df_mrs["frame_count"]>=20] # commented by run all default -> 45
+        df_mrs = df_mrs[df_mrs["frame_count"]>=45] # commented by run all default -> 45
         
         # Get Xs (remerge)
         # m1
@@ -53,13 +53,14 @@ if __name__=="__main__":
             "front",
             "vehicle_type_front",
             "front_gap",
-            "space_headway"
+            "space_headway",
+            "x_instant_speed_front",
         ]],on=["id","x_instant_speed_reference"],how="left")
         df_m1 = df_m1.drop_duplicates(subset=["id","x_instant_speed_reference"])
         # Get virtual_lane_type
         df_m1 = df_m1.merge(df_mrs_OG,on=["id","frame"],how="left")
         # Mean parameters
-        for p in ["x_instant_speed_reference","front_gap","space_headway"]:
+        for p in ["x_instant_speed_reference","front_gap","space_headway","x_instant_speed_front"]:
             df_m1[p+"_mean"] = df_m1.apply(lambda row:df_mss[(df_mss["id"]==row["id"]) & (df_mss["frame"].between(row["frame"]-buffer_frame_mean,row["frame"]+buffer_frame_mean))][p].mean(),axis=1)
 
         # m2
@@ -71,13 +72,14 @@ if __name__=="__main__":
             "front",
             "vehicle_type_front",
             "front_gap",
-            "x_instant_speed_reference"
+            "x_instant_speed_reference",
+            "x_instant_speed_front",
         ]],on=["id","space_headway"],how="left")
         df_m2 = df_m2.drop_duplicates(subset=["id","space_headway"])
         # Get virtual_lane_type
         df_m2 = df_m2.merge(df_mrs_OG,on=["id","frame"],how="left")
         # Mean parameters
-        for p in ["space_headway","front_gap","x_instant_speed_reference"]:
+        for p in ["space_headway","front_gap","x_instant_speed_reference","x_instant_speed_front"]:
             df_m2[p+"_mean"] = df_m2.apply(lambda row:df_mss[(df_mss["id"]==row["id"]) & (df_mss["frame"].between(row["frame"]-buffer_frame_mean,row["frame"]+buffer_frame_mean))][p].mean(),axis=1)
 
         # m3
@@ -108,9 +110,9 @@ if __name__=="__main__":
         # df_concat = df_m1.merge(df_m2,on=["id","frame_count","vehicle_type_reference"],how="left").merge(df_m3,on=["id"],how="left")
         # df_concat.to_excel("Teste.xlsx",index=False)
         
-        df_m1.to_csv(os.path.join("data/collected/Dissertação/Interaction/All Lanes/m1",f.replace(".json",".csv")),index=False)
-        df_m2.to_csv(os.path.join("data/collected/Dissertação/Interaction/All Lanes/m2",f.replace(".json",".csv")),index=False)
-        df_m3.to_csv(os.path.join("data/collected/Dissertação/Interaction/All Lanes/m3",f.replace(".json",".csv")),index=False)
+        df_m1.to_csv(os.path.join("data/collected/Dissertação/Interaction/Motorcycle Lane/m1",f.replace(".json",".csv")),index=False)
+        df_m2.to_csv(os.path.join("data/collected/Dissertação/Interaction/Motorcycle Lane/m2",f.replace(".json",".csv")),index=False)
+        df_m3.to_csv(os.path.join("data/collected/Dissertação/Interaction/Motorcycle Lane/m3",f.replace(".json",".csv")),index=False)
 
         print("OK",f)
 
