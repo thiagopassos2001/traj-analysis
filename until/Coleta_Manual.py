@@ -17,8 +17,8 @@ next_button = 'w'
 # Voltar frame
 previous_button = 's'
 
-sheet_path = r"C:\Users\User\Desktop\Trajetórias\Piloto1_Drone1_0014_transformed_rastreio_117.xlsx"
-video_path = r"C:\Users\User\Desktop\Trajetórias\Piloto1_Drone1_0014_transformed.avi"
+sheet_path = r"C:\Users\thiag\OneDrive\Documents\Repositórios (Local)\traj-analysis\project\Faixa Azul SP\validation\18_B_1_1261.xlsx"
+video_path = r"C:\Users\thiag\OneDrive\Desktop\18_B_1_transformed.avi"
 
 # Ler planilha para coletar os frames
 df = pd.read_excel(sheet_path)
@@ -28,7 +28,7 @@ cap = cv2.VideoCapture(video_path)
 width  = cap.get(3)
 height = cap.get(4)
 
-resolution_resize = 0.6
+resolution_resize = 1
 
 count_frame = 0
 

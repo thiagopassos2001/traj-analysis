@@ -65,11 +65,13 @@ if __name__=="__main__":
                     "id",
                     "frame",
                     "vehicle_type",
+                    "x","y",
                     "head",
                     "vehicle_length",
+                    "vehicle_width",
                     "x_instant_speed",
                     "y_instant_speed",
-                    "instant_speed"
+                    "x_instant_acc"
                 ]],
                 on=["id","frame"],
                 how="left")
@@ -83,11 +85,13 @@ if __name__=="__main__":
                     "id",
                     "frame",
                     "vehicle_type",
+                    "x","y",
                     "head",
                     "vehicle_length",
+                    "vehicle_width",
                     "x_instant_speed",
                     "y_instant_speed",
-                    "instant_speed"
+                    "x_instant_acc"
                 ]],
                 on=["frame","id"],
                 how="left")
@@ -95,10 +99,14 @@ if __name__=="__main__":
             df_front_vehicle = df_front_vehicle.rename(columns={"id":"front"})
             df_motorcycle = df_motorcycle.merge(df_front_vehicle,on=["front","frame"],how="left")
 
+            # Max obs space_headway
+            df_motorcycle["max_obs_space_headway"] = model.video_width
             # Headway
             df_motorcycle["space_headway"] = df_motorcycle["head_front"] - df_motorcycle["head_reference"]
             # Delta Vx
             df_motorcycle["delta_instant_speed_x"] =  df_motorcycle["x_instant_speed_reference"] - df_motorcycle["x_instant_speed_front"]
+            # Degree aligment
+            df_motorcycle["degree_aligment"] = np.rad2deg(np.arctan((df_motorcycle["y_front"]-df_motorcycle["y_reference"])/(df_motorcycle["x_front"]-df_motorcycle["x_reference"])))
             # TTC Long
             df_motorcycle["TTC"] = df_motorcycle["front_gap"] / df_motorcycle["delta_instant_speed_x"]
 
