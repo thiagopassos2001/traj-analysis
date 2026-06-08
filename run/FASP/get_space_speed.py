@@ -17,25 +17,68 @@ def GetTrafficLaneFromSupport(file_path,file_name):
 
     return traffic_lane_list
 
+def GetVideoDataset(agg_var=["id_coleta","nome_video"]):
+
+    sheet_url_video = "https://docs.google.com/spreadsheets/d/1pN1dvag90MUecKgGvSCfjpun5Ym3Yl-oNG7PH1TQ8gE/export?format=csv&gid=2080708038"
+    df_video = pd.read_csv(sheet_url_video).reset_index(drop=True)
+    df_video[["id_video","id_coleta"]] = df_video[["id_video","id_coleta"]].astype(str)
+
+    sheet_url_img_ref = "https://docs.google.com/spreadsheets/d/1pN1dvag90MUecKgGvSCfjpun5Ym3Yl-oNG7PH1TQ8gE/export?format=csv&gid=1167794226"
+    df_img_ref = pd.read_csv(sheet_url_img_ref).reset_index(drop=True)
+    df_img_ref[["id_video","id_coleta"]] = df_img_ref[["id_video","id_coleta"]].astype(str)
+
+    df = df_video.merge(df_img_ref,on=["id_coleta","img_ref"],how="left",suffixes=["","_img_ref"])
+
+    # Create id
+    df.insert(0,"id",df[agg_var].agg('_'.join, axis=1))
+
+    return df
+
 if __name__=="__main__":
-    root_path = "project/Faixa Azul SP"
+    # root_path = "project/Faixa Azul SP"
+    root_path = "project/Faixa Azul (Fortaleza)"
     os.chdir(root_path)
+
+
+
+
+
+    
+    # FA Fortaleza
+    df_support = GetVideoDataset(agg_var=["id_video","nome_video"])
+    id_coleta_list = ["2025-08-06","2026-05-21"]
+    df_support = df_support[df_support["id_coleta"].isin(id_coleta_list)]
+    df_support["id"] = df_support["id"]+"_processed.json"
+
+
+
+
+
 
     # Início do loop
     for f in os.listdir("data/json"):
-        output_file_path = os.path.join("data/collected/Dissertação/MotorcycleSpaceSpeed",f.replace(".json",".csv"))
+        output_file_path = os.path.join("data/collected/MotorcycleSpaceSpeed",f.replace(".json",".csv")) # /Dissertação
         if not os.path.exists(output_file_path):
+
+
+            # FA Fortaleza
+            df_support_ = df_support[df_support["id"]==f]
+            traffic_lane_list = eval(df_support_.iloc[0]["cod_faixas"])
+
+
             # File traj
             model = YoloMicroscopicDataProcessing()
-            model.ImportFromJSON(os.path.join("data/json",f),post_processing=model.PostProcessing1)
+            model.ImportFromJSON2(os.path.join("data/json",f)) # ImportFromJSON2 ,post_processing=model.PostProcessing1
+            model.df = model.df.rename(columns={"traffic_region":"traffic_lane"}) # FA Fortaleza
             f = f.replace(".json",".csv")
             # print(model.df.head())
 
-            # Traffic lanes
-            traffic_lane_list = GetTrafficLaneFromSupport(
-                "./Dados dos vídeos consolidados.xlsx",
-                f
-            )
+            # # Traffic lanes (FASP)
+            # traffic_lane_list = GetTrafficLaneFromSupport(
+            #     "./Dados dos vídeos consolidados.xlsx",
+            #     f
+            # )
+
             model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
 
             # Planilha em que cada linha é uma moto e seus confinantes

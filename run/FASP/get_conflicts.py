@@ -76,7 +76,7 @@ if __name__=="__main__":
     ]
 
     # Início do loop
-    for f in os.listdir("data/collected/Dissertação/MotorcycleSpaceSpeed")[95:]:
+    for f in os.listdir("data/collected/Dissertação/MotorcycleSpaceSpeed")[96:]:
         # File motorcycle space speed
         df_mss = pd.read_csv(os.path.join("data/collected/Dissertação/MotorcycleSpaceSpeed",f))
         # File motorcycle road section

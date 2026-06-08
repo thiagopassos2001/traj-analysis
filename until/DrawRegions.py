@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-img_ref = "project/Safe Lane/data/image/DJI_0001_1110.png"
+img_ref = r"C:\Users\thiag\OneDrive\Documents\Repositórios (Local)\visao-comp\4 Runs\img_ref\Faixa Azul (Fortaleza)\Humberto Monte\2025-08-06\DJI_0002_5160.png"
 
 # Lista de pontos no sistema ORIGINAL
 points_original = []

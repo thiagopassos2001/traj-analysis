@@ -668,10 +668,10 @@ class  YoloMicroscopicDataProcessing:
         except:
             self.df = pd.DataFrame()
             print("Trajetórias ainda não processadas!")
-        finally:
-            # Atualiza o json
-            with open(file_path,'w',encoding="utf-8",errors="ignore") as f:  
-                json.dump(cfg,f,indent=4)
+        # finally:
+        #     # Atualiza o json
+        #     with open(file_path,'w',encoding="utf-8",errors="ignore") as f:  
+        #         json.dump(cfg,f,indent=4)
 
     def RemoveLowIncidence(self,threshold:int=20):
         '''
@@ -5402,7 +5402,8 @@ def RunDataProcessingType2(
     flip_h=False,
     flip_v=False,
     green_open_time=[0],
-    force_processing=False):
+    force_processing=False,
+    buffer_region_value=0.05):
 
     # start_timer = timeit.default_timer()
 
@@ -5428,6 +5429,13 @@ def RunDataProcessingType2(
     #         crs="EPSG:31984")
     # model.traffic_lane_polygon["geometry"] = model.traffic_lane_polygon["geometry"].apply(model.ScalePxToMeterPolygon)
     # print(model.traffic_lane_polygon[["id","coords"]].to_dict("list"))
+
+    if model.flip_h:
+        regions = [[(video_width - x, y) for x, y in poly] for poly in regions]
+        conflict_zones = [[(video_width - x, y) for x, y in poly] for poly in conflict_zones]
+    if model.flip_v:
+        regions = [[(x, video_heigth - y) for x, y in poly]for poly in regions]
+        conflict_zones = [[(x, video_heigth - y) for x, y in poly]for poly in conflict_zones]
     
     model.regions = dict(zip(["id","coords"],[id_regions,regions]))
     model.regions = gpd.GeoDataFrame(
@@ -5535,7 +5543,10 @@ def RunDataProcessingType2(
                                     geometry=gpd.points_from_xy(model.df[model.x_centroid_column],model.df[model.y_centroid_column]),
                                     crs="EPSG:31984")
 
-        model.df = model.df.overlay(model.regions.rename(columns={"id":"polygon"})[["polygon","geometry"]],how='union',)
+        # Utiliza um leve buffer nas regiões reais para evitar NaN values causado por imprecisões de codificação
+        regions_buffer = model.regions.copy()
+        regions_buffer["geometry"] = regions_buffer.buffer(buffer_region_value)
+        model.df = model.df.overlay(regions_buffer.rename(columns={"id":"polygon"})[["polygon","geometry"]],how='union',)
         # Remover casos duplicados
         model.df = model.df.drop_duplicates(subset=[model.id_column,model.frame_column],keep="first")
         # Atribui a faixa ajustada
