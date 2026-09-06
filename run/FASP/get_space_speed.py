@@ -46,7 +46,8 @@ if __name__=="__main__":
     
     # FA Fortaleza
     df_support = GetVideoDataset(agg_var=["id_video","nome_video"])
-    id_coleta_list = ["2025-08-06","2026-05-21"]
+    # id_coleta_list = ["2025-08-06","2026-05-21"]
+    id_coleta_list = ["2025-08-07"]
     df_support = df_support[df_support["id_coleta"].isin(id_coleta_list)]
     df_support["id"] = df_support["id"]+"_processed.json"
 

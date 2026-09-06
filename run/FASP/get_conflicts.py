@@ -12,7 +12,7 @@ def FilterMainInteraction(df):
     df_filtered = []
     df_copy = df.copy()
 
-    id_list = df_copy["id"].tolist()
+    id_list = df_copy["id"].unique().tolist()
     for idx in id_list:
         df_ = df_copy[df_copy["id"]==idx]
         id_front = df_[df_["front"]>0]["front"].unique().tolist()
@@ -21,7 +21,7 @@ def FilterMainInteraction(df):
             df_filtered.append(df_[df_["front"]==id_front[0]])
         else:
             df_filtered.append(df_)
-    
+
     df_filtered = pd.concat(df_filtered,ignore_index=True)
 
     return df_filtered
@@ -76,11 +76,24 @@ if __name__=="__main__":
     ]
 
     # Início do loop
-    for f in os.listdir("data/collected/Dissertação/MotorcycleSpaceSpeed")[96:]:
+    for f in os.listdir("data/collected/Dissertação/MotorcycleSpaceSpeed"):
         # File motorcycle space speed
         df_mss = pd.read_csv(os.path.join("data/collected/Dissertação/MotorcycleSpaceSpeed",f))
+
+        # for col in df_mss.columns:
+        #     if df_mss[col].dtype == "int64":
+        #         df_mss[col] = pd.to_numeric(df_mss[col], downcast="integer")
+        #     if df_mss[col].dtype == "float64":
+        #         df_mss[col] = pd.to_numeric(df_mss[col], downcast="float")
+
+
         # File motorcycle road section
         df_mrs_OG = pd.read_csv(os.path.join("data/collected/Dissertação/MotorcycleRoadSection",f))
+        # for col in df_mrs_OG.columns:
+        #     if df_mrs_OG[col].dtype == "int64":
+        #         df_mrs_OG[col] = pd.to_numeric(df_mrs_OG[col], downcast="integer")
+        #     if df_mrs_OG[col].dtype == "float64":
+        #         df_mrs_OG[col] = pd.to_numeric(df_mrs_OG[col], downcast="float")
 
         df_mrs = df_mrs_OG[df_mrs_OG["virtual_lane_type"]=="Corredor Principal"].copy() # 
 
@@ -127,13 +140,15 @@ if __name__=="__main__":
             df_m1[p+"_mean"] = df_m1.apply(lambda row:df_mss[(df_mss["id"]==row["id"]) & (df_mss["frame"].between(row["frame"]-buffer_frame_mean,row["frame"]+buffer_frame_mean))][p].mean(),axis=1)
 
         # m2
-        df_m2 = df_mrs[["id","frame_count","space_headway"]].merge(df_mss_filtered[get_vars],on=["id","space_headway"],how="left")
+        # df_m2 = df_mrs[["id","frame_count","space_headway"]].merge(df_mss_filtered[get_vars],on=["id","space_headway"],how="left")
+        df_m2 = df_mrs[["id","frame_count","space_headway"]].merge(df_mss[get_vars],on=["id","space_headway"],how="left")
         df_m2 = df_m2.drop_duplicates(subset=["id","space_headway"])
         # Get virtual_lane_type
         df_m2 = df_m2.merge(df_mrs_OG,on=["id","frame"],how="left")
         # Mean parameters
         for p in avg_vars:
-            df_m2[p+"_mean"] = df_m2.apply(lambda row:df_mss_filtered[(df_mss_filtered["id"]==row["id"]) & (df_mss_filtered["frame"].between(row["frame"]-buffer_frame_mean,row["frame"]+buffer_frame_mean))][p].mean(),axis=1)
+            # df_m2[p+"_mean"] = df_m2.apply(lambda row:df_mss_filtered[(df_mss_filtered["id"]==row["id"]) & (df_mss_filtered["frame"].between(row["frame"]-buffer_frame_mean,row["frame"]+buffer_frame_mean))][p].mean(),axis=1)
+            df_m2[p+"_mean"] = df_m2.apply(lambda row:df_mss[(df_mss["id"]==row["id"]) & (df_mss["frame"].between(row["frame"]-buffer_frame_mean,row["frame"]+buffer_frame_mean))][p].mean(),axis=1)
 
         # m3
         df_m3 = df_mrs[["id","frame_count","TTC"]].merge(df_mss[get_vars],on=["id","TTC"],how="left")

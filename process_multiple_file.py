@@ -29,11 +29,10 @@ if __name__=="__main__":
     os.chdir(root_path)
 
     df = GetVideoDataset()
-    id_coleta_list = ["2025-08-06","2026-05-21"]
+    # id_coleta_list = ["2025-08-06","2026-05-21"]
+    id_coleta_list = ["2025-08-07"]
     df = df[df["id_coleta"].isin(id_coleta_list)]
-    # df = df[df["id_video"].isin(["2025-08-06-01","2025-08-06-02"])]
     print(df)
-    # df = df.iloc[:1]
 
     for index,row in df.iterrows():
         file_name = row["nome_video"]+"_processed.csv"
