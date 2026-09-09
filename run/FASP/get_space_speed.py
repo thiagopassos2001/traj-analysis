@@ -35,50 +35,42 @@ def GetVideoDataset(agg_var=["id_coleta","nome_video"]):
     return df
 
 if __name__=="__main__":
-    # root_path = "project/Faixa Azul SP"
-    root_path = "project/Faixa Azul (Fortaleza)"
+    root_path = "project/Faixa Azul SP"
+    # root_path = "project/Faixa Azul (Fortaleza)"
     os.chdir(root_path)
 
-
-
-
-
     
-    # FA Fortaleza
-    df_support = GetVideoDataset(agg_var=["id_video","nome_video"])
-    # id_coleta_list = ["2025-08-06","2026-05-21"]
-    id_coleta_list = ["2025-08-07"]
-    df_support = df_support[df_support["id_coleta"].isin(id_coleta_list)]
-    df_support["id"] = df_support["id"]+"_processed.json"
-
-
-
-
-
+    # # FA Fortaleza
+    # df_support = GetVideoDataset(agg_var=["id_video","nome_video"])
+    # # id_coleta_list = ["2025-08-06","2026-05-21"]
+    # id_coleta_list = ["2025-08-07"]
+    # df_support = df_support[df_support["id_coleta"].isin(id_coleta_list)]
+    # df_support["id"] = df_support["id"]+"_processed.json"
 
     # Início do loop
     for f in os.listdir("data/json"):
-        output_file_path = os.path.join("data/collected/MotorcycleSpaceSpeed",f.replace(".json",".csv")) # /Dissertação
+        output_file_path = os.path.join("data/collected/Dissertação/MotorcycleSpaceSpeed2",f.replace(".json",".csv")) # /Dissertação
         if not os.path.exists(output_file_path):
 
 
             # FA Fortaleza
-            df_support_ = df_support[df_support["id"]==f]
-            traffic_lane_list = eval(df_support_.iloc[0]["cod_faixas"])
+            # df_support_ = df_support[df_support["id"]==f]
+            # traffic_lane_list = eval(df_support_.iloc[0]["cod_faixas"])
 
 
             # File traj
             model = YoloMicroscopicDataProcessing()
-            model.ImportFromJSON2(os.path.join("data/json",f)) # ImportFromJSON2 ,post_processing=model.PostProcessing1
-            model.df = model.df.rename(columns={"traffic_region":"traffic_lane"}) # FA Fortaleza
+            model.ImportFromJSON(os.path.join("data/json",f),post_processing=model.PostProcessing1)
+            # model.ImportFromJSON2(os.path.join("data/json",f)) # # FA Fortaleza 
+            # model.df = model.df.rename(columns={"traffic_region":"traffic_lane"}) # FA Fortaleza
             f = f.replace(".json",".csv")
             # print(model.df.head())
 
-            # # Traffic lanes (FASP)
-            # traffic_lane_list = GetTrafficLaneFromSupport(
-            #     "./Dados dos vídeos consolidados.xlsx",
-            #     f
-            # )
+            # Traffic lanes (FASP)
+            traffic_lane_list = GetTrafficLaneFromSupport(
+                "./Dados dos vídeos consolidados.xlsx",
+                f
+            )
 
             model.df = model.df[model.df["traffic_lane"].isin(traffic_lane_list)]
 
@@ -111,16 +103,14 @@ if __name__=="__main__":
                     "vehicle_type",
                     "x","y",
                     "head",
-                    "vehicle_length",
-                    "vehicle_width",
                     "x_instant_speed",
                     "y_instant_speed",
-                    "x_instant_acc"
                 ]],
                 on=["id","frame"],
                 how="left")
             df_vehicle.columns = [col+"_reference" if not col in ["id","frame"] else col for col in df_vehicle.columns]
             df_motorcycle = df_motorcycle.merge(df_vehicle,on=["id","frame"],how="left")
+            df_motorcycle = df_motorcycle.drop_duplicates()
 
             # Front space headway
             df_front_vehicle = df_motorcycle[["frame","front"]].copy().rename(columns={"front":"id"})
@@ -131,17 +121,51 @@ if __name__=="__main__":
                     "vehicle_type",
                     "x","y",
                     "head",
-                    "vehicle_length",
-                    "vehicle_width",
                     "x_instant_speed",
                     "y_instant_speed",
-                    "x_instant_acc"
                 ]],
                 on=["frame","id"],
                 how="left")
             df_front_vehicle.columns = [col+"_front" if not col in ["id","frame"] else col for col in df_front_vehicle.columns]
             df_front_vehicle = df_front_vehicle.rename(columns={"id":"front"})
             df_motorcycle = df_motorcycle.merge(df_front_vehicle,on=["front","frame"],how="left")
+            df_motorcycle = df_motorcycle.drop_duplicates()
+
+            # Sides - Right
+            df_right_vehicle = df_motorcycle[["frame","right"]].copy().rename(columns={"right":"id"})
+            df_right_vehicle = df_right_vehicle.merge(
+                model.df[[
+                    "id",
+                    "frame",
+                    "vehicle_type",
+                    "x","y",
+                    "x_instant_speed",
+                    "y_instant_speed",
+                ]],
+                on=["frame","id"],
+                how="left")
+            df_right_vehicle.columns = [col+"_right" if not col in ["id","frame"] else col for col in df_right_vehicle.columns]
+            df_right_vehicle = df_right_vehicle.rename(columns={"id":"right"})
+            df_motorcycle = df_motorcycle.merge(df_right_vehicle,on=["right","frame"],how="left")
+            df_motorcycle = df_motorcycle.drop_duplicates()
+
+            # Sides - Left
+            df_left_vehicle = df_motorcycle[["frame","left"]].copy().rename(columns={"left":"id"})
+            df_left_vehicle = df_left_vehicle.merge(
+                model.df[[
+                    "id",
+                    "frame",
+                    "vehicle_type",
+                    "x","y",
+                    "x_instant_speed",
+                    "y_instant_speed",
+                ]],
+                on=["frame","id"],
+                how="left")
+            df_left_vehicle.columns = [col+"_left" if not col in ["id","frame"] else col for col in df_left_vehicle.columns]
+            df_left_vehicle = df_left_vehicle.rename(columns={"id":"left"})
+            df_motorcycle = df_motorcycle.merge(df_left_vehicle,on=["left","frame"],how="left")
+            df_motorcycle = df_motorcycle.drop_duplicates()
 
             # Max obs space_headway
             df_motorcycle["max_obs_space_headway"] = model.video_width
@@ -153,6 +177,28 @@ if __name__=="__main__":
             df_motorcycle["degree_aligment"] = np.rad2deg(np.arctan((df_motorcycle["y_front"]-df_motorcycle["y_reference"])/(df_motorcycle["x_front"]-df_motorcycle["x_reference"])))
             # TTC Long
             df_motorcycle["TTC"] = df_motorcycle["front_gap"] / df_motorcycle["delta_instant_speed_x"]
+            # DRAC Long
+            df_motorcycle["DRAC"] = (df_motorcycle["delta_instant_speed_x"]**2) / (2*df_motorcycle["front_gap"])
+            # Lat Gap + w1/2 + w2/2
+            df_motorcycle["GapW_left"] = df_motorcycle["y_reference"] - df_motorcycle["y_left"]
+            df_motorcycle["GapW_right"] = df_motorcycle["y_right"] - df_motorcycle["y_reference"]
+            # DeltaV Side
+            df_motorcycle["delta_instant_speed_x_left"] = df_motorcycle["x_instant_speed_reference"] - df_motorcycle["x_instant_speed_left"]
+            df_motorcycle["delta_instant_speed_x_right"] = df_motorcycle["x_instant_speed_reference"] - df_motorcycle["x_instant_speed_right"]
+            df_motorcycle = df_motorcycle.drop_duplicates()
+
+            drop_cols = []
+            for col in ["x_instant_speed","y_instant_speed"]:
+                for suf in ["_reference","_front","_left","_right"]:
+                    drop_cols.append(col+suf)
+            df_motorcycle = df_motorcycle.drop(columns=drop_cols)
+            print(len(df_motorcycle),len(df_motorcycle.drop_duplicates()))
+
+            for col in df_motorcycle.columns:
+                if pd.api.types.is_float_dtype(df_motorcycle[col]):
+                    df_motorcycle[col] = df_motorcycle[col].round(4)
+
+            df_motorcycle = df_motorcycle.drop_duplicates()
 
             df_motorcycle.to_csv(output_file_path,index=False)
             print("OK",f)

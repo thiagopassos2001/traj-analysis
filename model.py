@@ -4938,6 +4938,55 @@ class  YoloMicroscopicDataProcessing:
 
         return df_agg
 
+    def AvgVehicleSize(self):
+        self.avg_vehicle_size = self.df.groupby(
+            self.id_column
+        ).agg({
+            'vehicle_length':"median",
+            'vehicle_width':"median"
+        }).reset_index(drop=False)
+
+    def  SafetySpaceEllipse(
+        self,
+        x,
+        y,
+        Wa,
+        dy,
+        dx,
+        taua,
+        va
+    ):
+        # Rec
+        points_rec = [
+            (0,-(Wa+dy)),
+            (-2*dx,-(Wa+dy)),
+            (-2*dx,+(Wa+dy)),
+            (0,+(Wa+dy)),
+        ]
+
+        # Half Ellipse
+        a = taua*va
+        b = Wa+dy
+        # 1q = primeiro quadrante é negativo pois a imagem e as coordenadas também são, logo a "parte de cima", vem com negativo
+        points_half_ellipse_2q = []
+        for xi in np.arange(0,a,0.5):
+            points_half_ellipse_2q.append((xi,b*np.sqrt(1-((xi**2)/(a**2)))))
+        points_half_ellipse_2q.append((a,0))
+        points_half_ellipse_1q = [(c[0],-c[1]) for c in reversed(points_half_ellipse_2q)]
+
+        safety_space_points = points_rec + points_half_ellipse_1q + points_half_ellipse_2q
+        safety_space_points = [(c[0]+x,c[1]+y) for c in safety_space_points]
+
+        x_coords = [c[0] for c in safety_space_points]
+        y_coords = [c[1] for c in safety_space_points]
+        plt.plot(x_coords, y_coords, 'o', color='blue')
+        plt.plot([x,x,x-dx,x-dx], [y+(dy/2),y-(dy/2),y-(dy/2),y+(dy/2)], 'x', color='red')
+        plt.xlim(x-2*dx-1,x+a+1)
+        plt.ylim(y+Wa+dy+1,y-Wa-dy-1)
+        plt.grid()
+        plt.show()
+
+
 # Fluxo de execução para trabalhar com múltiplos arquivos
 # Copiar o padrão de alterar
 class Run():
