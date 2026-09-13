@@ -99,6 +99,8 @@ class  YoloMicroscopicDataProcessing:
         self.file_format = self.file_path.split('.')[-1]
         # Editable file
         self.df = ''
+        # mid size vehicle
+        self.avg_vehicle_size = None
 
         #-----------------------------------------------------------------------
 
@@ -4946,27 +4948,33 @@ class  YoloMicroscopicDataProcessing:
             'vehicle_width':"median"
         }).reset_index(drop=False)
 
-    def  SafetySpaceEllipse(
+        # self.avg_vehicle_size[self.id_column] = self.avg_vehicle_size[self.id_column].astype(int)
+
+    def SafetySpaceEllipse(
         self,
         x,
         y,
         Wa,
-        dy,
+        dy1,
         dx,
         taua,
         va
     ):
+
+        # dy1 = dy/2, pois o desenho vai ser utilizado para moto-moto e moto-carro, com larguras diferentes
+        # então a definição considera as bordas e o centro do veiculo invasor
+        
         # Rec
         points_rec = [
-            (0,-(Wa+dy)),
-            (-2*dx,-(Wa+dy)),
-            (-2*dx,+(Wa+dy)),
-            (0,+(Wa+dy)),
+            (0,-(Wa+dy1)),
+            (-2*dx,-(Wa+dy1)),
+            (-2*dx,+(Wa+dy1)),
+            (0,+(Wa+dy1)),
         ]
 
         # Half Ellipse
         a = taua*va
-        b = Wa+dy
+        b = Wa+dy1
         # 1q = primeiro quadrante é negativo pois a imagem e as coordenadas também são, logo a "parte de cima", vem com negativo
         points_half_ellipse_2q = []
         for xi in np.arange(0,a,0.5):
@@ -4977,14 +4985,68 @@ class  YoloMicroscopicDataProcessing:
         safety_space_points = points_rec + points_half_ellipse_1q + points_half_ellipse_2q
         safety_space_points = [(c[0]+x,c[1]+y) for c in safety_space_points]
 
-        x_coords = [c[0] for c in safety_space_points]
-        y_coords = [c[1] for c in safety_space_points]
-        plt.plot(x_coords, y_coords, 'o', color='blue')
-        plt.plot([x,x,x-dx,x-dx], [y+(dy/2),y-(dy/2),y-(dy/2),y+(dy/2)], 'x', color='red')
-        plt.xlim(x-2*dx-1,x+a+1)
-        plt.ylim(y+Wa+dy+1,y-Wa-dy-1)
-        plt.grid()
-        plt.show()
+        return shapely.Polygon(safety_space_points)
+
+        # x_coords = [c[0] for c in safety_space_points]
+        # y_coords = [c[1] for c in safety_space_points]
+        # plt.plot(x_coords, y_coords, 'o', color='blue')
+        # plt.plot([x,x,x-dx,x-dx], [y+(dy/2),y-(dy/2),y-(dy/2),y+(dy/2)], 'x', color='red')
+        # plt.xlim(x-2*dx-1,x+a+1)
+        # plt.ylim(y+Wa+dy+1,y-Wa-dy-1)
+        # plt.grid()
+        # plt.show()
+    
+    def CheckSafetySpaceEllipse(
+        self,
+        motorcycle_id,
+        frame,
+    ):
+        
+        if self.avg_vehicle_size==None:
+            self.AvgVehicleSize()
+
+        #  & (self.df[self.id_column]!=motorcycle_id)
+        all_vehicle = self.df[(self.df[self.frame_column]==frame)].reset_index(drop=True)
+        all_vehicle["ref_vehicle"] = all_vehicle[self.id_column]==motorcycle_id
+        all_vehicle["geometry"] = np.nan
+        for index, row in all_vehicle.iterrows():
+            vehicle = self.avg_vehicle_size[self.avg_vehicle_size[self.id_column]==row[self.id_column]]
+            l = vehicle[self.vehicle_length_column].iloc[0]
+            w = vehicle[self.vehicle_width_column].iloc[0]
+
+            if row[self.id_column]==motorcycle_id:
+                all_vehicle.loc[index,"geometry"] = self.SafetySpaceEllipse(
+                            x=row["head"],
+                            y=row["y"],
+                            Wa=1,
+                            dy1=w/2,
+                            dx=l,
+                            taua=0.5,
+                            va=row[self.x_instant_speed_column]
+                )
+            else:
+                all_vehicle.loc[index,"geometry"] = shapely.Polygon([
+                    (row["x"]+l/2,row["y"]+w/2),
+                    (row["x"]+l/2,row["y"]-w/2),
+                    (row["x"]-l/2,row["y"]-w/2),
+                    (row["x"]-l/2,row["y"]+w/2),
+                ])
+
+        all_vehicle = gpd.GeoDataFrame(all_vehicle,geometry="geometry")
+
+        motorcycle = all_vehicle[all_vehicle[self.id_column]==motorcycle_id]
+        other_vehicle = all_vehicle[all_vehicle[self.id_column]!=motorcycle_id]
+        mask = other_vehicle.geometry.intersects(motorcycle["geometry"].iloc[0])
+        other_vehicle["safety_space_ellipse_trigger_pulled"] = mask
+
+        # # print(all_vehicle)
+        # # motorcycle.plot()
+        # other_vehicle.plot(column="safety_space_ellipse_trigger_pulled")
+        # plt.xlim(self.video_width,0)
+        # plt.ylim(self.video_heigth,0)
+        # plt.show()
+
+        return other_vehicle[other_vehicle["safety_space_ellipse_trigger_pulled"]][self.id_column].tolist()
 
 
 # Fluxo de execução para trabalhar com múltiplos arquivos
